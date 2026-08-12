@@ -566,7 +566,7 @@ export default function WallpaperCalcApp() {
   const [rooms, setRooms] = useState([newRoom("部屋1")]);
   const [wallpaperWidth, setWallpaperWidth] = useState("910");
   const [cfWidth, setCfWidth] = useState("1820");
-  const [wallpaperLossRate, setWallpaperLossRate] = useState("10");
+  const [wallpaperLossRate, setWallpaperLossRate] = useState("8");
   const [cfLossRate, setCfLossRate] = useState("3");
   const [lossMode, setLossMode] = useState("perRoom");
 
@@ -833,7 +833,7 @@ export default function WallpaperCalcApp() {
           </Field>
         </div>
         <Field label="壁紙ロス率(発注余裕分) %">
-          <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="10" />
+          <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="8" />
         </Field>
         <Field label="CFロス率(発注余裕分) %">
           <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
