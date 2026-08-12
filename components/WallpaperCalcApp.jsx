@@ -193,7 +193,7 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 13, color: "#5a6b52" }}>
-            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm
+            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{room.wallpaperExcluded ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm{room.cfExcluded ? "(除外)" : ""}
           </span>
           <span style={{ fontSize: 18, color: "#5a6b52" }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -262,6 +262,19 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
           >
             + 床区画を追加
           </button>
+
+          <div style={{ margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              id={`cfex-${room.id}`}
+              checked={room.cfExcluded}
+              onChange={(e) => setField({ cfExcluded: e.target.checked })}
+              style={{ width: 18, height: 18 }}
+            />
+            <label htmlFor={`cfex-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
+              この部屋の床は寸法メモのみ(CF発注数量に含めない)
+            </label>
+          </div>
 
           <div
             style={{
@@ -360,6 +373,19 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
             />
             <label htmlFor={`ceil-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
               天井にも壁紙を貼る(床と同面積で計算)
+            </label>
+          </div>
+
+          <div style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              id={`wpex-${room.id}`}
+              checked={room.wallpaperExcluded}
+              onChange={(e) => setField({ wallpaperExcluded: e.target.checked })}
+              style={{ width: 18, height: 18 }}
+            />
+            <label htmlFor={`wpex-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
+              この部屋の壁・天井は寸法メモのみ(壁紙発注数量に含めない)
             </label>
           </div>
 
@@ -528,10 +554,16 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
                 <span>壁紙必要長さ(実数量)</span>
                 <span>{round1(result.wallpaperLenCm)} cm</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+              {room.wallpaperExcluded && (
+                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: room.wallpaperExcluded ? 8 : 0 }}>
                 <span>CF必要長さ(実数量)</span>
                 <span>{round1(result.cfLenCm)} cm{room.cfPattern ? `(${result.cfStrips}枚継ぎ)` : ""}</span>
               </div>
+              {room.cfExcluded && (
+                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+              )}
               {room.cfPattern && (
                 <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
                   柄あり計算:幅方向がロール幅を超えるため{result.cfStrips}枚を継いで施工する前提の長さ
@@ -664,14 +696,14 @@ export default function WallpaperCalcApp() {
 
   const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth)));
 
-  const totalWallpaperRaw = results.reduce((s, r) => s + r.wallpaperLenCm, 0);
-  const totalCfRaw = results.reduce((s, r) => s + r.cfLenCm, 0);
+  const totalWallpaperRaw = results.reduce((s, r, i) => s + (rooms[i].wallpaperExcluded ? 0 : r.wallpaperLenCm), 0);
+  const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfExcluded ? 0 : r.cfLenCm), 0);
 
   const wallpaperLoss = num(wallpaperLossRate) / 100;
   const cfLoss = num(cfLossRate) / 100;
 
-  const perRoomWallpaperTotal = results.reduce((s, r) => s + r.wallpaperLenCm * (1 + wallpaperLoss), 0);
-  const perRoomCfTotal = results.reduce((s, r) => s + r.cfLenCm * (1 + cfLoss), 0);
+  const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperExcluded ? 0 : r.wallpaperLenCm * (1 + wallpaperLoss)), 0);
+  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfExcluded ? 0 : r.cfLenCm * (1 + cfLoss)), 0);
   const bulkWallpaperTotal = totalWallpaperRaw * (1 + wallpaperLoss);
   const bulkCfTotal = totalCfRaw * (1 + cfLoss);
 
