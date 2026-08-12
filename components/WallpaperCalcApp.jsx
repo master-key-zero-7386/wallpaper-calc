@@ -628,6 +628,9 @@ export default function WallpaperCalcApp() {
   const [savedProjects, setSavedProjects] = useState([]);
   const [projectStatus, setProjectStatus] = useState("");
   const [showProjectList, setShowProjectList] = useState(false);
+  const [selectedProjectKeys, setSelectedProjectKeys] = useState([]);
+  const [combineStatus, setCombineStatus] = useState("");
+  const [combineResult, setCombineResult] = useState(null);
 
   const refreshProjectList = async () => {
     try {
@@ -647,7 +650,7 @@ export default function WallpaperCalcApp() {
   const saveProject = async () => {
     if (!projectName.trim()) {
       setProjectStatus("物件名を入力してや");
-      return;
+      return false;
     }
     setProjectStatus("保存中...");
     try {
@@ -667,8 +670,103 @@ export default function WallpaperCalcApp() {
       if (!res.ok) throw new Error("save failed");
       setProjectStatus(`「${projectName}」を保存したで`);
       refreshProjectList();
+      return true;
     } catch (e) {
       setProjectStatus("保存に失敗した、通信環境を確認してや");
+      return false;
+    }
+  };
+
+  const resetToBlankProject = () => {
+    setRooms([newRoom("部屋1")]);
+    setWallpaperWidth("910");
+    setCfWidth("1820");
+    setWallpaperLossRate("8");
+    setCfLossRate("3");
+    setLossMode("perRoom");
+    setProjectName("");
+    setProjectStatus("新規物件を作成したで");
+  };
+
+  const startNewProject = async () => {
+    const wantsSave = window.confirm(
+      "現在編集中の内容を保存しますか?\n(OK:保存してから新規作成 / キャンセル:保存せず新規作成)"
+    );
+    if (wantsSave) {
+      const ok = await saveProject();
+      if (!ok) return;
+    }
+    resetToBlankProject();
+  };
+
+  const toggleSelectProject = (key) => {
+    setSelectedProjectKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const combineProjects = async () => {
+    if (selectedProjectKeys.length === 0) {
+      setCombineStatus("合算する物件を選んでや");
+      return;
+    }
+    setCombineStatus("計算中...");
+    setCombineResult(null);
+    try {
+      const projects = await Promise.all(
+        selectedProjectKeys.map(async (key) => {
+          const res = await fetch(`/api/projects/${encodeURIComponent(key)}`);
+          if (!res.ok) throw new Error("not found");
+          return res.json();
+        })
+      );
+
+      const items = projects.map((project) => {
+        const payload = project.payload;
+        const wWidth = num(payload.wallpaperWidth);
+        const cWidth = num(payload.cfWidth);
+        const wLoss = num(payload.wallpaperLossRate) / 100;
+        const cLoss = num(payload.cfLossRate) / 100;
+        const perRoom = (payload.lossMode ?? "perRoom") === "perRoom";
+        const results = payload.rooms.map((r) => computeRoom(r, wWidth, cWidth));
+
+        const rawWallpaperCm = results.reduce(
+          (s, r, i) => s + ((payload.rooms[i].wallpaperEnabled ?? true) ? r.wallpaperLenCm : 0),
+          0
+        );
+        const rawCfCm = results.reduce(
+          (s, r, i) => s + ((payload.rooms[i].cfEnabled ?? true) ? r.cfLenCm : 0),
+          0
+        );
+        const wallpaperCm = perRoom
+          ? results.reduce(
+              (s, r, i) => s + ((payload.rooms[i].wallpaperEnabled ?? true) ? r.wallpaperLenCm * (1 + wLoss) : 0),
+              0
+            )
+          : rawWallpaperCm * (1 + wLoss);
+        const cfCm = perRoom
+          ? results.reduce(
+              (s, r, i) => s + ((payload.rooms[i].cfEnabled ?? true) ? r.cfLenCm * (1 + cLoss) : 0),
+              0
+            )
+          : rawCfCm * (1 + cLoss);
+
+        return { name: project.name, wallpaperWidth: wWidth, cfWidth: cWidth, wallpaperCm, cfCm };
+      });
+
+      const wallpaperOk = new Set(items.map((it) => it.wallpaperWidth)).size === 1;
+      const cfOk = new Set(items.map((it) => it.cfWidth)).size === 1;
+
+      setCombineResult({
+        items,
+        wallpaperOk,
+        cfOk,
+        wallpaperTotalCm: wallpaperOk ? items.reduce((s, it) => s + it.wallpaperCm, 0) : 0,
+        cfTotalCm: cfOk ? items.reduce((s, it) => s + it.cfCm, 0) : 0,
+      });
+      setCombineStatus("");
+    } catch (e) {
+      setCombineStatus("合算に失敗した");
     }
   };
 
@@ -700,7 +798,7 @@ export default function WallpaperCalcApp() {
       setCfLossRate(payload.cfLossRate ?? "3");
       setLossMode(payload.lossMode ?? "perRoom");
       setProjectName(project.name ?? name);
-      setProjectStatus(`「${project.name ?? name}」を読み込んだで`);
+      setProjectStatus(`「${project.name ?? name}」を開きました`);
       setShowProjectList(false);
     } catch (e) {
       setProjectStatus("読み込みに失敗した");
@@ -800,23 +898,39 @@ export default function WallpaperCalcApp() {
             保存
           </button>
         </div>
-        <button
-          onClick={() => {
-            setShowProjectList(!showProjectList);
-            if (!showProjectList) refreshProjectList();
-          }}
-          style={{
-            fontSize: 13,
-            padding: "6px 12px",
-            borderRadius: 5,
-            border: "1px solid #9ab08c",
-            background: "#f3f8ee",
-            color: "#4c6b40",
-            cursor: "pointer",
-          }}
-        >
-          保存済み物件を{showProjectList ? "閉じる" : "開く"}({savedProjects.length})
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => {
+              setShowProjectList(!showProjectList);
+              if (!showProjectList) refreshProjectList();
+            }}
+            style={{
+              fontSize: 13,
+              padding: "6px 12px",
+              borderRadius: 5,
+              border: "1px solid #9ab08c",
+              background: "#f3f8ee",
+              color: "#4c6b40",
+              cursor: "pointer",
+            }}
+          >
+            保存済み物件を{showProjectList ? "閉じる" : "開く"}({savedProjects.length})
+          </button>
+          <button
+            onClick={startNewProject}
+            style={{
+              fontSize: 13,
+              padding: "6px 12px",
+              borderRadius: 5,
+              border: "1px solid #9ab08c",
+              background: "#f3f8ee",
+              color: "#4c6b40",
+              cursor: "pointer",
+            }}
+          >
+            新規物件
+          </button>
+        </div>
         {projectStatus && <div style={{ fontSize: 12, color: "#5a6b52", marginTop: 6 }}>{projectStatus}</div>}
 
         {showProjectList && (
@@ -833,7 +947,15 @@ export default function WallpaperCalcApp() {
                   borderBottom: "1px solid #eef3e6",
                 }}
               >
-                <span style={{ fontSize: 14, color: "#33502e" }}>{p.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedProjectKeys.includes(p.key)}
+                    onChange={() => toggleSelectProject(p.key)}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  <span style={{ fontSize: 14, color: "#33502e" }}>{p.name}</span>
+                </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
                     onClick={() => loadProject(p.key, p.name)}
@@ -866,6 +988,49 @@ export default function WallpaperCalcApp() {
                 </div>
               </div>
             ))}
+
+            {savedProjects.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={combineProjects}
+                  style={{
+                    fontSize: 13,
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    border: "1px solid #4c6b40",
+                    background: "#4c6b40",
+                    color: "#fff",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  選択した物件を合算する({selectedProjectKeys.length})
+                </button>
+                {combineStatus && <div style={{ fontSize: 12, color: "#5a6b52", marginTop: 6 }}>{combineStatus}</div>}
+              </div>
+            )}
+
+            {combineResult && (
+              <div style={{ marginTop: 12, background: "#243d20", color: "#fff", borderRadius: 8, padding: 12 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>合算発注数量(実数量・{combineResult.items.length}件)</div>
+                {combineResult.wallpaperOk ? (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>壁紙合計</span>
+                    <span>{round1(combineResult.wallpaperTotalCm)} cm</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#f0b0b0" }}>設定されている壁紙の幅が違います。合算できません。</div>
+                )}
+                {combineResult.cfOk ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                    <span>CF合計</span>
+                    <span>{round1(combineResult.cfTotalCm)} cm</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#f0b0b0", marginTop: 4 }}>設定されているCFの幅が違います。合算できません。</div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
