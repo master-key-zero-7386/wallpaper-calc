@@ -385,7 +385,7 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
               style={{ width: 18, height: 18 }}
             />
             <label htmlFor={`wpex-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
-              この部屋の壁・天井は寸法メモのみ(壁紙発注数量に含めない)
+              この部屋の壁紙は寸法メモのみ(発注数量に含めない)
             </label>
           </div>
 
