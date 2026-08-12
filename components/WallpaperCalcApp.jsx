@@ -35,6 +35,49 @@ function NumInput({ value, onChange, placeholder }) {
   );
 }
 
+function ToggleSwitch({ checked, onChange, label }) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "10px 2px",
+        cursor: "pointer",
+      }}
+    >
+      <span style={{ fontSize: 14, color: "#33502e", lineHeight: 1.4 }}>{label}</span>
+      <span
+        style={{
+          position: "relative",
+          flexShrink: 0,
+          width: 48,
+          height: 28,
+          borderRadius: 14,
+          background: checked ? "#4c6b40" : "#c9d3c2",
+          transition: "background 0.15s ease",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: checked ? 23 : 3,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "#fff",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+            transition: "left 0.15s ease",
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 10 }}>
@@ -193,7 +236,7 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 13, color: "#5a6b52" }}>
-            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{room.wallpaperExcluded ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm{room.cfExcluded ? "(除外)" : ""}
+            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{!room.wallpaperEnabled ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm{!room.cfEnabled ? "(除外)" : ""}
           </span>
           <span style={{ fontSize: 18, color: "#5a6b52" }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -263,18 +306,11 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
             + 床区画を追加
           </button>
 
-          <div style={{ margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              id={`cfex-${room.id}`}
-              checked={room.cfExcluded}
-              onChange={(e) => setField({ cfExcluded: e.target.checked })}
-              style={{ width: 18, height: 18 }}
-            />
-            <label htmlFor={`cfex-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
-              この部屋の床は寸法メモのみ(CF発注数量に含めない)
-            </label>
-          </div>
+          <ToggleSwitch
+            checked={room.cfEnabled}
+            onChange={(v) => setField({ cfEnabled: v })}
+            label={room.cfEnabled ? "CFを貼る (発注数量に含む)" : "CFを貼らない (発注数量に含まない)"}
+          />
 
           <div
             style={{
@@ -363,31 +399,17 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
             )}
           </div>
 
-          <div style={{ margin: "10px 0", display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              id={`ceil-${room.id}`}
-              checked={room.ceilingEnabled}
-              onChange={(e) => setField({ ceilingEnabled: e.target.checked })}
-              style={{ width: 18, height: 18 }}
-            />
-            <label htmlFor={`ceil-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
-              天井にも壁紙を貼る(床と同面積で計算)
-            </label>
-          </div>
+          <ToggleSwitch
+            checked={room.ceilingEnabled}
+            onChange={(v) => setField({ ceilingEnabled: v })}
+            label={room.ceilingEnabled ? "天井に壁紙を貼る (床と同面積を発注数量に含む)" : "天井に壁紙を貼らない (発注数量に含まない)"}
+          />
 
-          <div style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              id={`wpex-${room.id}`}
-              checked={room.wallpaperExcluded}
-              onChange={(e) => setField({ wallpaperExcluded: e.target.checked })}
-              style={{ width: 18, height: 18 }}
-            />
-            <label htmlFor={`wpex-${room.id}`} style={{ fontSize: 14, color: "#33502e" }}>
-              この部屋の壁紙は寸法メモのみ(発注数量に含めない)
-            </label>
-          </div>
+          <ToggleSwitch
+            checked={room.wallpaperEnabled}
+            onChange={(v) => setField({ wallpaperEnabled: v })}
+            label={room.wallpaperEnabled ? "壁紙を貼る (壁紙発注数量に含む)" : "壁紙を貼らない (発注数量に含まない)"}
+          />
 
           <SectionTitle>壁 (北・南)</SectionTitle>
           <div style={{ display: "flex", gap: 10 }}>
@@ -554,14 +576,14 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
                 <span>壁紙必要長さ(実数量)</span>
                 <span>{round1(result.wallpaperLenCm)} cm</span>
               </div>
-              {room.wallpaperExcluded && (
+              {!room.wallpaperEnabled && (
                 <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: room.wallpaperExcluded ? 8 : 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !room.wallpaperEnabled ? 8 : 0 }}>
                 <span>CF必要長さ(実数量)</span>
                 <span>{round1(result.cfLenCm)} cm{room.cfPattern ? `(${result.cfStrips}枚継ぎ)` : ""}</span>
               </div>
-              {room.cfExcluded && (
+              {!room.cfEnabled && (
                 <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
               )}
               {room.cfPattern && (
@@ -660,6 +682,8 @@ export default function WallpaperCalcApp() {
       const reIdRoom = (r) => ({
         ...r,
         id: nextIdSafe(),
+        cfEnabled: r.cfEnabled ?? true,
+        wallpaperEnabled: r.wallpaperEnabled ?? true,
         floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
         extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
         openings: {
@@ -696,14 +720,14 @@ export default function WallpaperCalcApp() {
 
   const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth)));
 
-  const totalWallpaperRaw = results.reduce((s, r, i) => s + (rooms[i].wallpaperExcluded ? 0 : r.wallpaperLenCm), 0);
-  const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfExcluded ? 0 : r.cfLenCm), 0);
+  const totalWallpaperRaw = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? r.wallpaperLenCm : 0), 0);
+  const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? r.cfLenCm : 0), 0);
 
   const wallpaperLoss = num(wallpaperLossRate) / 100;
   const cfLoss = num(cfLossRate) / 100;
 
-  const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperExcluded ? 0 : r.wallpaperLenCm * (1 + wallpaperLoss)), 0);
-  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfExcluded ? 0 : r.cfLenCm * (1 + cfLoss)), 0);
+  const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? r.wallpaperLenCm * (1 + wallpaperLoss) : 0), 0);
+  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? r.cfLenCm * (1 + cfLoss) : 0), 0);
   const bulkWallpaperTotal = totalWallpaperRaw * (1 + wallpaperLoss);
   const bulkCfTotal = totalCfRaw * (1 + cfLoss);
 
