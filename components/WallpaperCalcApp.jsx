@@ -196,9 +196,7 @@ function DirectionOpenings({ label, list, onChange }) {
   );
 }
 
-function RoomCard({ room, updateRoom, removeRoom, result }) {
-  const [open, setOpen] = useState(true);
-
+function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) {
   const setField = (patch) => updateRoom({ ...room, ...patch });
 
   return (
@@ -220,7 +218,7 @@ function RoomCard({ room, updateRoom, removeRoom, result }) {
           background: "#eef4e6",
           cursor: "pointer",
         }}
-        onClick={() => setOpen(!open)}
+        onClick={onToggleOpen}
       >
         <input
           value={room.name}
@@ -632,6 +630,8 @@ export default function WallpaperCalcApp() {
   const [selectedProjectKeys, setSelectedProjectKeys] = useState([]);
   const [combineStatus, setCombineStatus] = useState("");
   const [combineResult, setCombineResult] = useState(null);
+  const [openRooms, setOpenRooms] = useState({});
+  const [settingsOpen, setSettingsOpen] = useState(true);
 
   const refreshProjectList = async () => {
     try {
@@ -836,6 +836,13 @@ export default function WallpaperCalcApp() {
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
   const addRoom = () => setRooms([...rooms, newRoom(`部屋${rooms.length + 1}`)]);
+
+  const toggleRoomOpen = (id) => setOpenRooms((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
+  const allRoomsOpen = rooms.every((r) => openRooms[r.id] ?? true);
+  const toggleAllRooms = () => {
+    const next = !allRoomsOpen;
+    setOpenRooms(Object.fromEntries(rooms.map((r) => [r.id, next])));
+  };
 
   const exportExcel = () => {
     const lossModeLabel = lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増";
@@ -1091,57 +1098,84 @@ export default function WallpaperCalcApp() {
           marginBottom: 16,
         }}
       >
-        <SectionTitle accent="#5a6b52">資材・ロス率の設定</SectionTitle>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Field label="壁紙の基本幅 mm">
-            <NumInput value={wallpaperWidth} onChange={setWallpaperWidth} placeholder="910" />
-          </Field>
-          <Field label="CFの基本幅 mm">
-            <NumInput value={cfWidth} onChange={setCfWidth} placeholder="1820" />
-          </Field>
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setSettingsOpen(!settingsOpen)}
+        >
+          <SectionTitle accent="#5a6b52">資材・ロス率の設定</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{settingsOpen ? "▲" : "▼"}</span>
         </div>
-        <Field label="壁紙ロス率(発注余裕分) %">
-          <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="8" />
-        </Field>
-        <Field label="CFロス率(発注余裕分) %">
-          <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
-        </Field>
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <button
-            onClick={() => setLossMode("perRoom")}
-            style={{
-              flex: "1 1 0%", minWidth: 0,
-              padding: "8px",
-              borderRadius: 6,
-              border: lossMode === "perRoom" ? "2px solid #4c6b40" : "1px solid #cbd5c0",
-              background: lossMode === "perRoom" ? "#e6f0dd" : "#fff",
-              color: "#33502e",
-              fontWeight: lossMode === "perRoom" ? 700 : 400,
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            部屋ごと割増
-            <div style={{ fontSize: 11, fontWeight: 400, color: "#7a8a70" }}>小規模向け</div>
-          </button>
-          <button
-            onClick={() => setLossMode("bulk")}
-            style={{
-              flex: "1 1 0%", minWidth: 0,
-              padding: "8px",
-              borderRadius: 6,
-              border: lossMode === "bulk" ? "2px solid #4c6b40" : "1px solid #cbd5c0",
-              background: lossMode === "bulk" ? "#e6f0dd" : "#fff",
-              color: "#33502e",
-              fontWeight: lossMode === "bulk" ? 700 : 400,
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            全体一括割増
-            <div style={{ fontSize: 11, fontWeight: 400, color: "#7a8a70" }}>部屋数が多い現場向け</div>
-          </button>
-        </div>
+        {settingsOpen && (
+          <>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field label="壁紙の基本幅 mm">
+                <NumInput value={wallpaperWidth} onChange={setWallpaperWidth} placeholder="910" />
+              </Field>
+              <Field label="CFの基本幅 mm">
+                <NumInput value={cfWidth} onChange={setCfWidth} placeholder="1820" />
+              </Field>
+            </div>
+            <Field label="壁紙ロス率(発注余裕分) %">
+              <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="8" />
+            </Field>
+            <Field label="CFロス率(発注余裕分) %">
+              <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
+            </Field>
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <button
+                onClick={() => setLossMode("perRoom")}
+                style={{
+                  flex: "1 1 0%", minWidth: 0,
+                  padding: "8px",
+                  borderRadius: 6,
+                  border: lossMode === "perRoom" ? "2px solid #4c6b40" : "1px solid #cbd5c0",
+                  background: lossMode === "perRoom" ? "#e6f0dd" : "#fff",
+                  color: "#33502e",
+                  fontWeight: lossMode === "perRoom" ? 700 : 400,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                部屋ごと割増
+                <div style={{ fontSize: 11, fontWeight: 400, color: "#7a8a70" }}>小規模向け</div>
+              </button>
+              <button
+                onClick={() => setLossMode("bulk")}
+                style={{
+                  flex: "1 1 0%", minWidth: 0,
+                  padding: "8px",
+                  borderRadius: 6,
+                  border: lossMode === "bulk" ? "2px solid #4c6b40" : "1px solid #cbd5c0",
+                  background: lossMode === "bulk" ? "#e6f0dd" : "#fff",
+                  color: "#33502e",
+                  fontWeight: lossMode === "bulk" ? 700 : 400,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                全体一括割増
+                <div style={{ fontSize: 11, fontWeight: 400, color: "#7a8a70" }}>部屋数が多い現場向け</div>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        <button
+          onClick={toggleAllRooms}
+          style={{
+            fontSize: 13,
+            padding: "6px 12px",
+            borderRadius: 5,
+            border: "1px solid #9ab08c",
+            background: "#f3f8ee",
+            color: "#4c6b40",
+            cursor: "pointer",
+          }}
+        >
+          部屋を全部{allRoomsOpen ? "閉じる" : "開く"}
+        </button>
       </div>
 
       {rooms.map((room, i) => (
@@ -1151,6 +1185,8 @@ export default function WallpaperCalcApp() {
           result={results[i]}
           updateRoom={(next) => updateRoom(room.id, next)}
           removeRoom={() => removeRoom(room.id)}
+          open={openRooms[room.id] ?? true}
+          onToggleOpen={() => toggleRoomOpen(room.id)}
         />
       ))}
 
