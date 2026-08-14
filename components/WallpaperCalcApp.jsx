@@ -11,6 +11,7 @@ import {
   round1,
   roundUp,
   computeRoom,
+  computeShopPurchase,
 } from "../lib/calc";
 
 let localUid = 1;
@@ -678,9 +679,9 @@ export default function WallpaperCalcApp() {
   const [settingsOpen, setSettingsOpen] = useState(true);
 
   const defaultMaterialShops = (prefix) => [
-    { id: `${prefix}A`, name: "店舗A", price: "", shipping: "", url: "" },
-    { id: `${prefix}B`, name: "店舗B", price: "", shipping: "", url: "" },
-    { id: `${prefix}C`, name: "店舗C", price: "", shipping: "", url: "" },
+    { id: `${prefix}A`, name: "店舗A", price: "", unit: "m", shipping: "", url: "" },
+    { id: `${prefix}B`, name: "店舗B", price: "", unit: "m", shipping: "", url: "" },
+    { id: `${prefix}C`, name: "店舗C", price: "", unit: "m", shipping: "", url: "" },
   ];
   const [wallpaperShops, setWallpaperShops] = useState(defaultMaterialShops("wp"));
   const [cfShops, setCfShops] = useState(defaultMaterialShops("cf"));
@@ -988,20 +989,29 @@ export default function WallpaperCalcApp() {
   const finalCfM = finalCf / 100;
   const finalOtherSheetM = finalOtherSheet / 100;
 
-  const wallpaperShopSubtotals = wallpaperShops.map((s) => finalWallpaperM * num(s.price));
+  const wallpaperPurchases = wallpaperShops.map((s) => computeShopPurchase(s, finalWallpaperM));
+  const wallpaperShopSubtotals = wallpaperPurchases.map((p) => p.subtotal);
   const wallpaperShopTotals = wallpaperShops.map((s, i) => wallpaperShopSubtotals[i] + num(s.shipping));
-  const wallpaperShopPrices = wallpaperShops.map((s) => num(s.price)).filter((p) => p > 0);
-  const cheapestWallpaperPrice = wallpaperShopPrices.length > 0 ? Math.min(...wallpaperShopPrices) : null;
+  const wallpaperNormalizedPrices = wallpaperShops
+    .map((s, i) => (num(s.price) > 0 ? wallpaperPurchases[i].normalizedPricePerM : null))
+    .filter((p) => p !== null);
+  const cheapestWallpaperPrice = wallpaperNormalizedPrices.length > 0 ? Math.min(...wallpaperNormalizedPrices) : null;
 
-  const cfShopSubtotals = cfShops.map((s) => finalCfM * num(s.price));
+  const cfPurchases = cfShops.map((s) => computeShopPurchase(s, finalCfM));
+  const cfShopSubtotals = cfPurchases.map((p) => p.subtotal);
   const cfShopTotals = cfShops.map((s, i) => cfShopSubtotals[i] + num(s.shipping));
-  const cfShopPrices = cfShops.map((s) => num(s.price)).filter((p) => p > 0);
-  const cheapestCfPrice = cfShopPrices.length > 0 ? Math.min(...cfShopPrices) : null;
+  const cfNormalizedPrices = cfShops
+    .map((s, i) => (num(s.price) > 0 ? cfPurchases[i].normalizedPricePerM : null))
+    .filter((p) => p !== null);
+  const cheapestCfPrice = cfNormalizedPrices.length > 0 ? Math.min(...cfNormalizedPrices) : null;
 
-  const otherSheetShopSubtotals = otherSheetShops.map((s) => finalOtherSheetM * num(s.price));
+  const otherSheetPurchases = otherSheetShops.map((s) => computeShopPurchase(s, finalOtherSheetM));
+  const otherSheetShopSubtotals = otherSheetPurchases.map((p) => p.subtotal);
   const otherSheetShopTotals = otherSheetShops.map((s, i) => otherSheetShopSubtotals[i] + num(s.shipping));
-  const otherSheetShopPrices = otherSheetShops.map((s) => num(s.price)).filter((p) => p > 0);
-  const cheapestOtherSheetPrice = otherSheetShopPrices.length > 0 ? Math.min(...otherSheetShopPrices) : null;
+  const otherSheetNormalizedPrices = otherSheetShops
+    .map((s, i) => (num(s.price) > 0 ? otherSheetPurchases[i].normalizedPricePerM : null))
+    .filter((p) => p !== null);
+  const cheapestOtherSheetPrice = otherSheetNormalizedPrices.length > 0 ? Math.min(...otherSheetNormalizedPrices) : null;
 
   const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
   const adoptedWallpaperShop = adoptedWallpaperShopIdx >= 0 ? wallpaperShops[adoptedWallpaperShopIdx] : null;
@@ -1021,23 +1031,25 @@ export default function WallpaperCalcApp() {
   const adoptedOtherSheetShipping = adoptedOtherSheetShop ? num(adoptedOtherSheetShop.shipping) : 0;
   const adoptedOtherSheetTotal = adoptedOtherSheetShopIdx >= 0 ? otherSheetShopTotals[adoptedOtherSheetShopIdx] : 0;
 
-  const adoptedWallpaperUnitPrice = adoptedWallpaperShop ? num(adoptedWallpaperShop.price) : 0;
-  const adoptedCfUnitPrice = adoptedCfShop ? num(adoptedCfShop.price) : 0;
-  const adoptedOtherSheetUnitPrice = adoptedOtherSheetShop ? num(adoptedOtherSheetShop.price) : 0;
-
-  const remainingWallpaperCost = (remainingWallpaper / 100) * adoptedWallpaperUnitPrice;
-  const remainingCfCost = (remainingCf / 100) * adoptedCfUnitPrice;
-  const remainingOtherSheetCost = (remainingOtherSheet / 100) * adoptedOtherSheetUnitPrice;
+  const remainingWallpaperCost = adoptedWallpaperShop
+    ? computeShopPurchase(adoptedWallpaperShop, remainingWallpaper / 100).subtotal
+    : 0;
+  const remainingCfCost = adoptedCfShop ? computeShopPurchase(adoptedCfShop, remainingCf / 100).subtotal : 0;
+  const remainingOtherSheetCost = adoptedOtherSheetShop
+    ? computeShopPurchase(adoptedOtherSheetShop, remainingOtherSheet / 100).subtotal
+    : 0;
 
   const yen = (n) => Math.round(n).toLocaleString("ja-JP");
 
   const renderMaterialShopCard = (shop, i, updateFn, cheapestPrice, qtyM, badgeColor, adoptedId, toggleAdopt) => {
     const price = num(shop.price);
     const shipping = num(shop.shipping);
-    const subtotal = qtyM * price;
+    const purchase = computeShopPurchase(shop, qtyM);
+    const subtotal = purchase.subtotal;
     const total = subtotal + shipping;
-    const isCheapest = cheapestPrice !== null && price > 0 && price === cheapestPrice;
+    const isCheapest = cheapestPrice !== null && price > 0 && purchase.normalizedPricePerM === cheapestPrice;
     const isAdopted = adoptedId === shop.id;
+    const unitLabel = shop.unit === "10cm" ? "10cm" : shop.unit === "cm" ? "cm" : "m";
     return (
       <div
         key={shop.id}
@@ -1097,8 +1109,29 @@ export default function WallpaperCalcApp() {
           </button>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <Field label="単価 円/m">
-            <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
+          <Field label="単価">
+            <div style={{ display: "flex", gap: 4 }}>
+              <div style={{ flex: "1 1 0%", minWidth: 0 }}>
+                <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
+              </div>
+              <select
+                value={shop.unit || "m"}
+                onChange={(e) => updateFn(i, { unit: e.target.value })}
+                style={{
+                  flexShrink: 0,
+                  padding: "0 6px",
+                  fontSize: 14,
+                  border: "1px solid #cbd5c0",
+                  borderRadius: 6,
+                  background: "#fff",
+                  color: "#33502e",
+                }}
+              >
+                <option value="m">円/m</option>
+                <option value="10cm">円/10cm</option>
+                <option value="cm">円/cm</option>
+              </select>
+            </div>
           </Field>
           <Field label="送料 円(別途)">
             <NumInput value={shop.shipping} onChange={(v) => updateFn(i, { shipping: v })} placeholder="0" />
@@ -1170,8 +1203,11 @@ export default function WallpaperCalcApp() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>合計額({round1(qtyM)}m)</span>
+            <span>合計額({round1(purchase.purchasedQtyM)}m発注)</span>
             <span>¥{yen(subtotal)}</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#7a8a70", marginTop: 1 }}>
+            実使用{round1(qtyM)}m → {unitLabel}単位で{purchase.units}コマ({round1(purchase.purchasedQtyM)}m)発注
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
             <span>送料(別途)</span>
