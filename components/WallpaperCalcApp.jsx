@@ -678,9 +678,9 @@ export default function WallpaperCalcApp() {
   const [settingsOpen, setSettingsOpen] = useState(true);
 
   const defaultMaterialShops = (prefix) => [
-    { id: `${prefix}A`, name: "店舗A", price: "", url: "" },
-    { id: `${prefix}B`, name: "店舗B", price: "", url: "" },
-    { id: `${prefix}C`, name: "店舗C", price: "", url: "" },
+    { id: `${prefix}A`, name: "店舗A", price: "", shipping: "", url: "" },
+    { id: `${prefix}B`, name: "店舗B", price: "", shipping: "", url: "" },
+    { id: `${prefix}C`, name: "店舗C", price: "", shipping: "", url: "" },
   ];
   const [wallpaperShops, setWallpaperShops] = useState(defaultMaterialShops("wp"));
   const [cfShops, setCfShops] = useState(defaultMaterialShops("cf"));
@@ -988,29 +988,54 @@ export default function WallpaperCalcApp() {
   const finalCfM = finalCf / 100;
   const finalOtherSheetM = finalOtherSheet / 100;
 
-  const wallpaperShopTotals = wallpaperShops.map((s) => finalWallpaperM * num(s.price));
+  const wallpaperShopSubtotals = wallpaperShops.map((s) => finalWallpaperM * num(s.price));
+  const wallpaperShopTotals = wallpaperShops.map((s, i) => wallpaperShopSubtotals[i] + num(s.shipping));
   const wallpaperShopPrices = wallpaperShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestWallpaperPrice = wallpaperShopPrices.length > 0 ? Math.min(...wallpaperShopPrices) : null;
 
-  const cfShopTotals = cfShops.map((s) => finalCfM * num(s.price));
+  const cfShopSubtotals = cfShops.map((s) => finalCfM * num(s.price));
+  const cfShopTotals = cfShops.map((s, i) => cfShopSubtotals[i] + num(s.shipping));
   const cfShopPrices = cfShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestCfPrice = cfShopPrices.length > 0 ? Math.min(...cfShopPrices) : null;
 
-  const otherSheetShopTotals = otherSheetShops.map((s) => finalOtherSheetM * num(s.price));
+  const otherSheetShopSubtotals = otherSheetShops.map((s) => finalOtherSheetM * num(s.price));
+  const otherSheetShopTotals = otherSheetShops.map((s, i) => otherSheetShopSubtotals[i] + num(s.shipping));
   const otherSheetShopPrices = otherSheetShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestOtherSheetPrice = otherSheetShopPrices.length > 0 ? Math.min(...otherSheetShopPrices) : null;
 
   const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
+  const adoptedWallpaperShop = adoptedWallpaperShopIdx >= 0 ? wallpaperShops[adoptedWallpaperShopIdx] : null;
+  const adoptedWallpaperSubtotal = adoptedWallpaperShopIdx >= 0 ? wallpaperShopSubtotals[adoptedWallpaperShopIdx] : 0;
+  const adoptedWallpaperShipping = adoptedWallpaperShop ? num(adoptedWallpaperShop.shipping) : 0;
   const adoptedWallpaperTotal = adoptedWallpaperShopIdx >= 0 ? wallpaperShopTotals[adoptedWallpaperShopIdx] : 0;
+
   const adoptedCfShopIdx = cfShops.findIndex((s) => s.id === adoptedCfShopId);
+  const adoptedCfShop = adoptedCfShopIdx >= 0 ? cfShops[adoptedCfShopIdx] : null;
+  const adoptedCfSubtotal = adoptedCfShopIdx >= 0 ? cfShopSubtotals[adoptedCfShopIdx] : 0;
+  const adoptedCfShipping = adoptedCfShop ? num(adoptedCfShop.shipping) : 0;
   const adoptedCfTotal = adoptedCfShopIdx >= 0 ? cfShopTotals[adoptedCfShopIdx] : 0;
+
   const adoptedOtherSheetShopIdx = otherSheetShops.findIndex((s) => s.id === adoptedOtherSheetShopId);
+  const adoptedOtherSheetShop = adoptedOtherSheetShopIdx >= 0 ? otherSheetShops[adoptedOtherSheetShopIdx] : null;
+  const adoptedOtherSheetSubtotal = adoptedOtherSheetShopIdx >= 0 ? otherSheetShopSubtotals[adoptedOtherSheetShopIdx] : 0;
+  const adoptedOtherSheetShipping = adoptedOtherSheetShop ? num(adoptedOtherSheetShop.shipping) : 0;
   const adoptedOtherSheetTotal = adoptedOtherSheetShopIdx >= 0 ? otherSheetShopTotals[adoptedOtherSheetShopIdx] : 0;
+
+  const adoptedWallpaperUnitPrice = adoptedWallpaperShop ? num(adoptedWallpaperShop.price) : 0;
+  const adoptedCfUnitPrice = adoptedCfShop ? num(adoptedCfShop.price) : 0;
+  const adoptedOtherSheetUnitPrice = adoptedOtherSheetShop ? num(adoptedOtherSheetShop.price) : 0;
+
+  const remainingWallpaperCost = (remainingWallpaper / 100) * adoptedWallpaperUnitPrice;
+  const remainingCfCost = (remainingCf / 100) * adoptedCfUnitPrice;
+  const remainingOtherSheetCost = (remainingOtherSheet / 100) * adoptedOtherSheetUnitPrice;
 
   const yen = (n) => Math.round(n).toLocaleString("ja-JP");
 
-  const renderMaterialShopCard = (shop, i, updateFn, cheapestPrice, subtotal, qtyM, badgeColor, adoptedId, toggleAdopt) => {
+  const renderMaterialShopCard = (shop, i, updateFn, cheapestPrice, qtyM, badgeColor, adoptedId, toggleAdopt) => {
     const price = num(shop.price);
+    const shipping = num(shop.shipping);
+    const subtotal = qtyM * price;
+    const total = subtotal + shipping;
     const isCheapest = cheapestPrice !== null && price > 0 && price === cheapestPrice;
     const isAdopted = adoptedId === shop.id;
     return (
@@ -1071,9 +1096,14 @@ export default function WallpaperCalcApp() {
             {isAdopted ? "採用中" : "採用"}
           </button>
         </div>
-        <Field label="単価 円/m">
-          <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
-        </Field>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field label="単価 円/m">
+            <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
+          </Field>
+          <Field label="送料 円(別途)">
+            <NumInput value={shop.shipping} onChange={(v) => updateFn(i, { shipping: v })} placeholder="0" />
+          </Field>
+        </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             value={shop.url}
@@ -1132,17 +1162,35 @@ export default function WallpaperCalcApp() {
         )}
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
             marginTop: 8,
             paddingTop: 8,
             borderTop: "1px dashed #d8e3cd",
-            fontWeight: 700,
-            color: "#243d20",
+            fontSize: 13,
+            color: "#33502e",
           }}
         >
-          <span>金額({round1(qtyM)}m)</span>
-          <span>¥{yen(subtotal)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>合計額({round1(qtyM)}m)</span>
+            <span>¥{yen(subtotal)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+            <span>送料(別途)</span>
+            <span>¥{yen(shipping)}</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "1px solid #e4ecda",
+              fontWeight: 700,
+              color: "#243d20",
+            }}
+          >
+            <span>総額</span>
+            <span>¥{yen(total)}</span>
+          </div>
         </div>
       </div>
     );
@@ -1474,26 +1522,46 @@ export default function WallpaperCalcApp() {
           <div style={{ fontSize: 12, opacity: 0.7 }}>総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {roundUp(finalWallpaper)} cm</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedWallpaperTotal)}</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedWallpaperTotal)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+            合計額¥{yen(adoptedWallpaperSubtotal)} + 送料¥{yen(adoptedWallpaperShipping)}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontSize: 26, fontWeight: 800 }}>CF {roundUp(finalCf)} cm</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedCfTotal)}</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedCfTotal)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasOtherSheetRooms ? 6 : 0 }}>
+            合計額¥{yen(adoptedCfSubtotal)} + 送料¥{yen(adoptedCfShipping)}
           </div>
           {hasOtherSheetRooms && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedOtherSheetTotal)}</span>
-            </div>
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedOtherSheetTotal)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65 }}>
+                合計額¥{yen(adoptedOtherSheetSubtotal)} + 送料¥{yen(adoptedOtherSheetShipping)}
+              </div>
+            </>
           )}
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(施工完了の部屋を除く)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingWallpaperCost)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingCfCost)}</span>
+          </div>
           {hasOtherSheetRooms && (
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>別シート {remainingOtherSheet} cm</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>別シート {remainingOtherSheet} cm</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingOtherSheetCost)}</span>
+            </div>
           )}
         </div>
       </div>
@@ -1656,7 +1724,6 @@ export default function WallpaperCalcApp() {
                 i,
                 updateWallpaperShop,
                 cheapestWallpaperPrice,
-                wallpaperShopTotals[i],
                 finalWallpaperM,
                 "#4c6b40",
                 adoptedWallpaperShopId,
@@ -1694,7 +1761,6 @@ export default function WallpaperCalcApp() {
                 i,
                 updateCfShop,
                 cheapestCfPrice,
-                cfShopTotals[i],
                 finalCfM,
                 "#b8860b",
                 adoptedCfShopId,
@@ -1733,7 +1799,6 @@ export default function WallpaperCalcApp() {
                   i,
                   updateOtherSheetShop,
                   cheapestOtherSheetPrice,
-                  otherSheetShopTotals[i],
                   finalOtherSheetM,
                   "#6b4c8a",
                   adoptedOtherSheetShopId,
