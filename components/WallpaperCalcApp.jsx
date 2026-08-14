@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import {
   newRoom,
   emptyOpening,
@@ -836,6 +837,52 @@ export default function WallpaperCalcApp() {
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
   const addRoom = () => setRooms([...rooms, newRoom(`部屋${rooms.length + 1}`)]);
 
+  const exportExcel = () => {
+    const lossModeLabel = lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増";
+    const rows = [
+      [`物件名: ${projectName || "(未保存)"}`],
+      [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
+      [],
+      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "CF必要長さ(cm)", "壁紙", "CF"],
+      ...rooms.map((room, i) => {
+        const r = results[i];
+        return [
+          room.name,
+          round1(r.floorAreaM2),
+          round1(r.ceilingAreaM2),
+          round1(r.wallpaperAreaM2),
+          round1(r.wallpaperLenCm),
+          round1(r.cfLenCm),
+          room.wallpaperEnabled ? "対象" : "除外",
+          room.cfEnabled ? "対象" : "除外",
+        ];
+      }),
+      [],
+      ["設定"],
+      ["壁紙幅(mm)", num(wallpaperWidth)],
+      ["CF幅(mm)", num(cfWidth)],
+      ["壁紙ロス率(%)", num(wallpaperLossRate)],
+      ["CFロス率(%)", num(cfLossRate)],
+      ["割増方式", lossModeLabel],
+      [],
+      ["発注数量サマリー"],
+      ["壁紙(実数量合計) cm", round1(totalWallpaperRaw)],
+      ["CF(実数量合計) cm", round1(totalCfRaw)],
+      ["部屋ごと割増 壁紙 cm", round1(perRoomWallpaperTotal)],
+      ["部屋ごと割増 CF cm", round1(perRoomCfTotal)],
+      ["全体一括割増 壁紙 cm", round1(bulkWallpaperTotal)],
+      ["全体一括割増 CF cm", round1(bulkCfTotal)],
+      [`発注量(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
+      [`発注量(${lossModeLabel}) CF cm`, roundUp(finalCf)],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "発注数量");
+    XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
+  };
+
   return (
     <div
       className="wpcalc-root"
@@ -1133,7 +1180,23 @@ export default function WallpaperCalcApp() {
           color: "#fff",
         }}
       >
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, opacity: 0.85 }}>発注数量サマリー</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.85 }}>発注数量サマリー</div>
+          <button
+            onClick={exportExcel}
+            style={{
+              fontSize: 12,
+              padding: "6px 10px",
+              borderRadius: 5,
+              border: "1px solid rgba(255,255,255,0.4)",
+              background: "rgba(255,255,255,0.1)",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Excel出力
+          </button>
+        </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 4 }}>
           <span>壁紙(実数量合計)</span>
