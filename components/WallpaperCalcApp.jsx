@@ -684,10 +684,13 @@ export default function WallpaperCalcApp() {
   ];
   const [wallpaperShops, setWallpaperShops] = useState(defaultMaterialShops("wp"));
   const [cfShops, setCfShops] = useState(defaultMaterialShops("cf"));
+  const [otherSheetShops, setOtherSheetShops] = useState(defaultMaterialShops("os"));
   const [adoptedWallpaperShopId, setAdoptedWallpaperShopId] = useState(null);
   const [adoptedCfShopId, setAdoptedCfShopId] = useState(null);
+  const [adoptedOtherSheetShopId, setAdoptedOtherSheetShopId] = useState(null);
   const [wallpaperCompareOpen, setWallpaperCompareOpen] = useState(true);
   const [cfCompareOpen, setCfCompareOpen] = useState(true);
+  const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(true);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [favoriteShops, setFavoriteShops] = useState([]);
   const [newFavName, setNewFavName] = useState("");
@@ -713,8 +716,11 @@ export default function WallpaperCalcApp() {
   const updateWallpaperShop = (i, patch) =>
     setWallpaperShops(wallpaperShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const updateCfShop = (i, patch) => setCfShops(cfShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  const updateOtherSheetShop = (i, patch) =>
+    setOtherSheetShops(otherSheetShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const toggleAdoptWallpaperShop = (id) => setAdoptedWallpaperShopId((prev) => (prev === id ? null : id));
   const toggleAdoptCfShop = (id) => setAdoptedCfShopId((prev) => (prev === id ? null : id));
+  const toggleAdoptOtherSheetShop = (id) => setAdoptedOtherSheetShopId((prev) => (prev === id ? null : id));
   const addFavorite = () => {
     if (!newFavUrl.trim()) return;
     setFavoriteShops([
@@ -759,8 +765,10 @@ export default function WallpaperCalcApp() {
         lossMode,
         wallpaperShops,
         cfShops,
+        otherSheetShops,
         adoptedWallpaperShopId,
         adoptedCfShopId,
+        adoptedOtherSheetShopId,
       };
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -788,8 +796,10 @@ export default function WallpaperCalcApp() {
     setLossMode("perRoom");
     setWallpaperShops(defaultMaterialShops("wp"));
     setCfShops(defaultMaterialShops("cf"));
+    setOtherSheetShops(defaultMaterialShops("os"));
     setAdoptedWallpaperShopId(null);
     setAdoptedCfShopId(null);
+    setAdoptedOtherSheetShopId(null);
     setProjectName("");
     setProjectStatus("新規物件を作成したで");
   };
@@ -909,8 +919,10 @@ export default function WallpaperCalcApp() {
       setLossMode(payload.lossMode ?? "perRoom");
       setWallpaperShops(payload.wallpaperShops ?? defaultMaterialShops("wp"));
       setCfShops(payload.cfShops ?? defaultMaterialShops("cf"));
+      setOtherSheetShops(payload.otherSheetShops ?? defaultMaterialShops("os"));
       setAdoptedWallpaperShopId(payload.adoptedWallpaperShopId ?? null);
       setAdoptedCfShopId(payload.adoptedCfShopId ?? null);
+      setAdoptedOtherSheetShopId(payload.adoptedOtherSheetShopId ?? null);
       setProjectName(project.name ?? name);
       setProjectStatus(`「${project.name ?? name}」を開きました`);
       setShowProjectList(false);
@@ -974,6 +986,7 @@ export default function WallpaperCalcApp() {
 
   const finalWallpaperM = finalWallpaper / 100;
   const finalCfM = finalCf / 100;
+  const finalOtherSheetM = finalOtherSheet / 100;
 
   const wallpaperShopTotals = wallpaperShops.map((s) => finalWallpaperM * num(s.price));
   const wallpaperShopPrices = wallpaperShops.map((s) => num(s.price)).filter((p) => p > 0);
@@ -983,10 +996,16 @@ export default function WallpaperCalcApp() {
   const cfShopPrices = cfShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestCfPrice = cfShopPrices.length > 0 ? Math.min(...cfShopPrices) : null;
 
+  const otherSheetShopTotals = otherSheetShops.map((s) => finalOtherSheetM * num(s.price));
+  const otherSheetShopPrices = otherSheetShops.map((s) => num(s.price)).filter((p) => p > 0);
+  const cheapestOtherSheetPrice = otherSheetShopPrices.length > 0 ? Math.min(...otherSheetShopPrices) : null;
+
   const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
   const adoptedWallpaperTotal = adoptedWallpaperShopIdx >= 0 ? wallpaperShopTotals[adoptedWallpaperShopIdx] : 0;
   const adoptedCfShopIdx = cfShops.findIndex((s) => s.id === adoptedCfShopId);
   const adoptedCfTotal = adoptedCfShopIdx >= 0 ? cfShopTotals[adoptedCfShopIdx] : 0;
+  const adoptedOtherSheetShopIdx = otherSheetShops.findIndex((s) => s.id === adoptedOtherSheetShopId);
+  const adoptedOtherSheetTotal = adoptedOtherSheetShopIdx >= 0 ? otherSheetShopTotals[adoptedOtherSheetShopIdx] : 0;
 
   const yen = (n) => Math.round(n).toLocaleString("ja-JP");
 
@@ -1464,6 +1483,7 @@ export default function WallpaperCalcApp() {
           {hasOtherSheetRooms && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedOtherSheetTotal)}</span>
             </div>
           )}
         </div>
@@ -1684,6 +1704,46 @@ export default function WallpaperCalcApp() {
           </>
         )}
       </div>
+
+      {hasOtherSheetRooms && (
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #d8e3cd",
+            borderRadius: 10,
+            padding: 14,
+            marginTop: 16,
+          }}
+        >
+          <div
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+            onClick={() => setOtherSheetCompareOpen(!otherSheetCompareOpen)}
+          >
+            <SectionTitle accent="#5a6b52">仕入れ比較 - 別シート(店舗ごとの単価)</SectionTitle>
+            <span style={{ fontSize: 16, color: "#5a6b52" }}>{otherSheetCompareOpen ? "▲" : "▼"}</span>
+          </div>
+          {otherSheetCompareOpen && (
+            <>
+              <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+                数量は別シートの総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"}・{round1(finalOtherSheetM)}m)を使用。単価はm(メートル)あたりで入力。
+              </div>
+              {otherSheetShops.map((shop, i) =>
+                renderMaterialShopCard(
+                  shop,
+                  i,
+                  updateOtherSheetShop,
+                  cheapestOtherSheetPrice,
+                  otherSheetShopTotals[i],
+                  finalOtherSheetM,
+                  "#6b4c8a",
+                  adoptedOtherSheetShopId,
+                  toggleAdoptOtherSheetShop
+                )
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div
         style={{
