@@ -202,8 +202,8 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
   return (
     <div
       style={{
-        background: room.purchased ? "#f3f6f0" : "#fff",
-        border: room.purchased ? "1px solid #b9c9ae" : "1px solid #d8e3cd",
+        background: room.workDone ? "#f3f6f0" : "#fff",
+        border: room.workDone ? "1px solid #b9c9ae" : "1px solid #d8e3cd",
         borderRadius: 10,
         marginBottom: 14,
         overflow: "hidden",
@@ -215,7 +215,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
           justifyContent: "space-between",
           alignItems: "center",
           padding: "12px 14px",
-          background: room.purchased ? "#dfe7d8" : "#eef4e6",
+          background: room.workDone ? "#dfe7d8" : "#eef4e6",
           cursor: "pointer",
         }}
         onClick={onToggleOpen}
@@ -235,8 +235,8 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 13, color: "#5a6b52" }}>
-            {room.purchased && <span style={{ color: "#4c6b40", fontWeight: 700 }}>済 ・</span>}
-            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{!room.wallpaperEnabled ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm{!room.cfEnabled ? "(除外)" : ""}
+            {room.workDone && <span style={{ color: "#4c6b40", fontWeight: 700 }}>済 ・</span>}
+            壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{!room.wallpaperEnabled ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(room.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)}cm{!room.cfEnabled ? "(除外)" : ""}{room.useOtherSheet ? "(別シート)" : ""}
           </span>
           <span style={{ fontSize: 18, color: "#5a6b52" }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -245,11 +245,32 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
       {open && (
         <div style={{ padding: 14 }}>
           <ToggleSwitch
-            checked={room.purchased}
-            onChange={(v) => setField({ purchased: v })}
-            label={room.purchased ? "発注完了(済み)" : "発注完了にする"}
+            checked={room.workDone}
+            onChange={(v) => setField({ workDone: v })}
+            label={room.workDone ? "施工完了(済み)" : "施工完了にする"}
           />
-          <SectionTitle>床 (クッションフロア用)</SectionTitle>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ flex: "1 1 auto" }}>
+              <SectionTitle>床 (クッションフロア用)</SectionTitle>
+            </div>
+            <button
+              onClick={() => setField({ useOtherSheet: !room.useOtherSheet })}
+              style={{
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 5,
+                border: room.useOtherSheet ? "1px solid #b8860b" : "1px solid #9ab08c",
+                background: room.useOtherSheet ? "#f5e6b8" : "#f3f8ee",
+                color: room.useOtherSheet ? "#7a5a10" : "#4c6b40",
+                fontWeight: 700,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                marginBottom: 10,
+              }}
+            >
+              {room.useOtherSheet ? "別シート使用中" : "別シートを使用"}
+            </button>
+          </div>
           {room.floors.map((f, i) => (
             <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
               <input
@@ -314,7 +335,15 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
           <ToggleSwitch
             checked={room.cfEnabled}
             onChange={(v) => setField({ cfEnabled: v })}
-            label={room.cfEnabled ? "CFを貼る (発注数量に含む)" : "CFを貼らない (発注数量に含まない)"}
+            label={
+              room.useOtherSheet
+                ? room.cfEnabled
+                  ? "別シートを貼る (発注数量に含む)"
+                  : "別シートを貼らない (発注数量に含まない)"
+                : room.cfEnabled
+                ? "CFを貼る (発注数量に含む)"
+                : "CFを貼らない (発注数量に含まない)"
+            }
           />
 
           <div
@@ -585,18 +614,25 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
                 <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !room.wallpaperEnabled ? 8 : 0 }}>
-                <span>CF必要長さ(実数量)</span>
-                <span>{round1(result.cfLenCm)} cm{room.cfPattern ? `(${result.cfStrips}枚継ぎ)` : ""}</span>
+                <span>{room.useOtherSheet ? "別シート必要長さ(実数量)" : "CF必要長さ(実数量)"}</span>
+                <span>
+                  {round1(room.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)} cm
+                  {room.cfPattern ? `(${room.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚継ぎ)` : ""}
+                </span>
               </div>
               {!room.cfEnabled && (
                 <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
               )}
               {room.cfPattern && (
                 <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
-                  柄あり計算:幅方向がロール幅を超えるため{result.cfStrips}枚を継いで施工する前提の長さ
+                  柄あり計算:幅方向がロール幅を超えるため{room.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
                 </div>
               )}
-              {result.cfNote && <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>{result.cfNote}</div>}
+              {(room.useOtherSheet ? result.otherSheetNote : result.cfNote) && (
+                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>
+                  {room.useOtherSheet ? result.otherSheetNote : result.cfNote}
+                </div>
+              )}
             </div>
           </div>
 
@@ -625,8 +661,10 @@ export default function WallpaperCalcApp() {
   const [rooms, setRooms] = useState([newRoom("部屋1")]);
   const [wallpaperWidth, setWallpaperWidth] = useState("910");
   const [cfWidth, setCfWidth] = useState("1820");
+  const [otherSheetWidth, setOtherSheetWidth] = useState("1820");
   const [wallpaperLossRate, setWallpaperLossRate] = useState("8");
   const [cfLossRate, setCfLossRate] = useState("3");
+  const [otherSheetLossRate, setOtherSheetLossRate] = useState("3");
   const [lossMode, setLossMode] = useState("perRoom");
 
   const [projectName, setProjectName] = useState("");
@@ -638,6 +676,55 @@ export default function WallpaperCalcApp() {
   const [combineResult, setCombineResult] = useState(null);
   const [openRooms, setOpenRooms] = useState({});
   const [settingsOpen, setSettingsOpen] = useState(true);
+
+  const defaultMaterialShops = (prefix) => [
+    { id: `${prefix}A`, name: "店舗A", price: "", url: "" },
+    { id: `${prefix}B`, name: "店舗B", price: "", url: "" },
+    { id: `${prefix}C`, name: "店舗C", price: "", url: "" },
+  ];
+  const [wallpaperShops, setWallpaperShops] = useState(defaultMaterialShops("wp"));
+  const [cfShops, setCfShops] = useState(defaultMaterialShops("cf"));
+  const [adoptedWallpaperShopId, setAdoptedWallpaperShopId] = useState(null);
+  const [adoptedCfShopId, setAdoptedCfShopId] = useState(null);
+  const [wallpaperCompareOpen, setWallpaperCompareOpen] = useState(true);
+  const [cfCompareOpen, setCfCompareOpen] = useState(true);
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [favoriteShops, setFavoriteShops] = useState([]);
+  const [newFavName, setNewFavName] = useState("");
+  const [newFavUrl, setNewFavUrl] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("wpcalc-favorite-shops");
+      if (raw) setFavoriteShops(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("wpcalc-favorite-shops", JSON.stringify(favoriteShops));
+    } catch (e) {
+      // ignore
+    }
+  }, [favoriteShops]);
+
+  const updateWallpaperShop = (i, patch) =>
+    setWallpaperShops(wallpaperShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  const updateCfShop = (i, patch) => setCfShops(cfShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  const toggleAdoptWallpaperShop = (id) => setAdoptedWallpaperShopId((prev) => (prev === id ? null : id));
+  const toggleAdoptCfShop = (id) => setAdoptedCfShopId((prev) => (prev === id ? null : id));
+  const addFavorite = () => {
+    if (!newFavUrl.trim()) return;
+    setFavoriteShops([
+      ...favoriteShops,
+      { id: nextIdSafe(), name: newFavName.trim() || newFavUrl.trim(), url: newFavUrl.trim() },
+    ]);
+    setNewFavName("");
+    setNewFavUrl("");
+  };
+  const removeFavorite = (id) => setFavoriteShops(favoriteShops.filter((f) => f.id !== id));
 
   const refreshProjectList = async () => {
     try {
@@ -665,9 +752,15 @@ export default function WallpaperCalcApp() {
         rooms,
         wallpaperWidth,
         cfWidth,
+        otherSheetWidth,
         wallpaperLossRate,
         cfLossRate,
+        otherSheetLossRate,
         lossMode,
+        wallpaperShops,
+        cfShops,
+        adoptedWallpaperShopId,
+        adoptedCfShopId,
       };
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -688,9 +781,15 @@ export default function WallpaperCalcApp() {
     setRooms([newRoom("部屋1")]);
     setWallpaperWidth("910");
     setCfWidth("1820");
+    setOtherSheetWidth("1820");
     setWallpaperLossRate("8");
     setCfLossRate("3");
+    setOtherSheetLossRate("3");
     setLossMode("perRoom");
+    setWallpaperShops(defaultMaterialShops("wp"));
+    setCfShops(defaultMaterialShops("cf"));
+    setAdoptedWallpaperShopId(null);
+    setAdoptedCfShopId(null);
     setProjectName("");
     setProjectStatus("新規物件を作成したで");
   };
@@ -789,7 +888,8 @@ export default function WallpaperCalcApp() {
         id: nextIdSafe(),
         cfEnabled: r.cfEnabled ?? true,
         wallpaperEnabled: r.wallpaperEnabled ?? true,
-        purchased: r.purchased ?? false,
+        useOtherSheet: r.useOtherSheet ?? false,
+        workDone: r.workDone ?? false,
         floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
         extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
         openings: {
@@ -802,9 +902,15 @@ export default function WallpaperCalcApp() {
       setRooms(payload.rooms.map(reIdRoom));
       setWallpaperWidth(payload.wallpaperWidth ?? "910");
       setCfWidth(payload.cfWidth ?? "1820");
+      setOtherSheetWidth(payload.otherSheetWidth ?? "1820");
       setWallpaperLossRate(payload.wallpaperLossRate ?? "10");
       setCfLossRate(payload.cfLossRate ?? "3");
+      setOtherSheetLossRate(payload.otherSheetLossRate ?? "3");
       setLossMode(payload.lossMode ?? "perRoom");
+      setWallpaperShops(payload.wallpaperShops ?? defaultMaterialShops("wp"));
+      setCfShops(payload.cfShops ?? defaultMaterialShops("cf"));
+      setAdoptedWallpaperShopId(payload.adoptedWallpaperShopId ?? null);
+      setAdoptedCfShopId(payload.adoptedCfShopId ?? null);
       setProjectName(project.name ?? name);
       setProjectStatus(`「${project.name ?? name}」を開きました`);
       setShowProjectList(false);
@@ -824,37 +930,204 @@ export default function WallpaperCalcApp() {
     }
   };
 
-  const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth)));
+  const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth), num(otherSheetWidth)));
+  const hasOtherSheetRooms = rooms.some((r) => r.useOtherSheet);
 
   const totalWallpaperRaw = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? r.wallpaperLenCm : 0), 0);
-  const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? r.cfLenCm : 0), 0);
+  const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? r.cfLenCm : 0), 0);
+  const totalOtherSheetRaw = results.reduce((s, r, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? r.otherSheetLenCm : 0), 0);
 
   const wallpaperLoss = num(wallpaperLossRate) / 100;
   const cfLoss = num(cfLossRate) / 100;
+  const otherSheetLoss = num(otherSheetLossRate) / 100;
 
   // 部屋ごと割増:部屋単位で切り上げてから合計(部屋ごとに端材が出て使い回せない前提)
   const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? roundUp(r.wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
-  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? roundUp(r.cfLenCm * (1 + cfLoss)) : 0), 0);
+  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? roundUp(r.cfLenCm * (1 + cfLoss)) : 0), 0);
+  const perRoomOtherSheetTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? roundUp(r.otherSheetLenCm * (1 + otherSheetLoss)) : 0), 0);
   // 全体一括割増:合計してから1回だけ切り上げ(端材を他の部屋に回せる前提)
   const bulkWallpaperTotal = totalWallpaperRaw * (1 + wallpaperLoss);
   const bulkCfTotal = totalCfRaw * (1 + cfLoss);
+  const bulkOtherSheetTotal = totalOtherSheetRaw * (1 + otherSheetLoss);
 
   const finalWallpaper = lossMode === "perRoom" ? perRoomWallpaperTotal : bulkWallpaperTotal;
   const finalCf = lossMode === "perRoom" ? perRoomCfTotal : bulkCfTotal;
+  const finalOtherSheet = lossMode === "perRoom" ? perRoomOtherSheetTotal : bulkOtherSheetTotal;
 
-  const unpurchasedIdx = rooms.map((r, i) => (r.purchased ? -1 : i)).filter((i) => i >= 0);
-  const remainingWallpaperRaw = unpurchasedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? results[i].wallpaperLenCm : 0), 0);
-  const remainingCfRaw = unpurchasedIdx.reduce((s, i) => s + (rooms[i].cfEnabled ? results[i].cfLenCm : 0), 0);
-  const remainingWallpaperPerRoom = unpurchasedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? roundUp(results[i].wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
-  const remainingCfPerRoom = unpurchasedIdx.reduce((s, i) => s + (rooms[i].cfEnabled ? roundUp(results[i].cfLenCm * (1 + cfLoss)) : 0), 0);
+  const unfinishedIdx = rooms.map((r, i) => (r.workDone ? -1 : i)).filter((i) => i >= 0);
+  const remainingWallpaperRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? results[i].wallpaperLenCm : 0), 0);
+  const remainingCfRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? results[i].cfLenCm : 0), 0);
+  const remainingOtherSheetRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? results[i].otherSheetLenCm : 0), 0);
+  const remainingWallpaperPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? roundUp(results[i].wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
+  const remainingCfPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? roundUp(results[i].cfLenCm * (1 + cfLoss)) : 0), 0);
+  const remainingOtherSheetPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? roundUp(results[i].otherSheetLenCm * (1 + otherSheetLoss)) : 0), 0);
   const remainingWallpaperBulk = roundUp(remainingWallpaperRaw * (1 + wallpaperLoss));
   const remainingCfBulk = roundUp(remainingCfRaw * (1 + cfLoss));
+  const remainingOtherSheetBulk = roundUp(remainingOtherSheetRaw * (1 + otherSheetLoss));
   const remainingWallpaper = lossMode === "perRoom" ? remainingWallpaperPerRoom : remainingWallpaperBulk;
   const remainingCf = lossMode === "perRoom" ? remainingCfPerRoom : remainingCfBulk;
+  const remainingOtherSheet = lossMode === "perRoom" ? remainingOtherSheetPerRoom : remainingOtherSheetBulk;
 
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
   const addRoom = () => setRooms([...rooms, newRoom(`部屋${rooms.length + 1}`)]);
+
+  const finalWallpaperM = finalWallpaper / 100;
+  const finalCfM = finalCf / 100;
+
+  const wallpaperShopTotals = wallpaperShops.map((s) => finalWallpaperM * num(s.price));
+  const wallpaperShopPrices = wallpaperShops.map((s) => num(s.price)).filter((p) => p > 0);
+  const cheapestWallpaperPrice = wallpaperShopPrices.length > 0 ? Math.min(...wallpaperShopPrices) : null;
+
+  const cfShopTotals = cfShops.map((s) => finalCfM * num(s.price));
+  const cfShopPrices = cfShops.map((s) => num(s.price)).filter((p) => p > 0);
+  const cheapestCfPrice = cfShopPrices.length > 0 ? Math.min(...cfShopPrices) : null;
+
+  const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
+  const adoptedWallpaperTotal = adoptedWallpaperShopIdx >= 0 ? wallpaperShopTotals[adoptedWallpaperShopIdx] : 0;
+  const adoptedCfShopIdx = cfShops.findIndex((s) => s.id === adoptedCfShopId);
+  const adoptedCfTotal = adoptedCfShopIdx >= 0 ? cfShopTotals[adoptedCfShopIdx] : 0;
+
+  const yen = (n) => Math.round(n).toLocaleString("ja-JP");
+
+  const renderMaterialShopCard = (shop, i, updateFn, cheapestPrice, subtotal, qtyM, badgeColor, adoptedId, toggleAdopt) => {
+    const price = num(shop.price);
+    const isCheapest = cheapestPrice !== null && price > 0 && price === cheapestPrice;
+    const isAdopted = adoptedId === shop.id;
+    return (
+      <div
+        key={shop.id}
+        style={{
+          border: isAdopted ? `2px solid ${badgeColor}` : isCheapest ? `2px dashed ${badgeColor}` : "1px solid #d8e3cd",
+          borderRadius: 8,
+          padding: 10,
+          marginBottom: 10,
+          background: isAdopted ? "#f5faf1" : "#fafcf7",
+        }}
+      >
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+          <input
+            value={shop.name}
+            onChange={(e) => updateFn(i, { name: e.target.value })}
+            style={{
+              flex: "1 1 0%",
+              minWidth: 0,
+              fontWeight: 700,
+              fontSize: 14,
+              padding: "6px 8px",
+              border: "1px solid #cbd5c0",
+              borderRadius: 5,
+              color: "#33502e",
+            }}
+          />
+          {isCheapest && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#fff",
+                background: badgeColor,
+                padding: "3px 8px",
+                borderRadius: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
+              最安
+            </span>
+          )}
+          <button
+            onClick={() => toggleAdopt(shop.id)}
+            style={{
+              fontSize: 12,
+              padding: "5px 10px",
+              borderRadius: 5,
+              border: `1px solid ${badgeColor}`,
+              background: isAdopted ? badgeColor : "#fff",
+              color: isAdopted ? "#fff" : badgeColor,
+              fontWeight: 700,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isAdopted ? "採用中" : "採用"}
+          </button>
+        </div>
+        <Field label="単価 円/m">
+          <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
+        </Field>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            value={shop.url}
+            onChange={(e) => updateFn(i, { url: e.target.value })}
+            placeholder="単価を採用したショップのURL"
+            style={{
+              flex: "1 1 0%",
+              minWidth: 0,
+              padding: "7px 8px",
+              fontSize: 13,
+              border: "1px solid #cbd5c0",
+              borderRadius: 5,
+            }}
+          />
+          {shop.url && (
+            <a
+              href={shop.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: "7px 10px",
+                borderRadius: 5,
+                border: "1px solid #9ab08c",
+                background: "#f3f8ee",
+                color: "#4c6b40",
+                fontSize: 12,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              開く
+            </a>
+          )}
+        </div>
+        {favoriteShops.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+            {favoriteShops.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => updateFn(i, { url: f.url })}
+                title={f.url}
+                style={{
+                  fontSize: 11,
+                  padding: "4px 8px",
+                  borderRadius: 12,
+                  border: "1px solid #9ab08c",
+                  background: "#fff",
+                  color: "#4c6b40",
+                  cursor: "pointer",
+                }}
+              >
+                ★{f.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: "1px dashed #d8e3cd",
+            fontWeight: 700,
+            color: "#243d20",
+          }}
+        >
+          <span>金額({round1(qtyM)}m)</span>
+          <span>¥{yen(subtotal)}</span>
+        </div>
+      </div>
+    );
+  };
 
   const toggleRoomOpen = (id) => setOpenRooms((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   const allRoomsOpen = rooms.every((r) => openRooms[r.id] ?? true);
@@ -869,7 +1142,7 @@ export default function WallpaperCalcApp() {
       [`物件名: ${projectName || "(未保存)"}`],
       [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
       [],
-      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "CF必要長さ(cm)", "壁紙", "CF", "発注"],
+      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "床材必要長さ(cm)", "床材種別", "壁紙", "床材", "発注"],
       ...rooms.map((room, i) => {
         const r = results[i];
         return [
@@ -878,35 +1151,43 @@ export default function WallpaperCalcApp() {
           round1(r.ceilingAreaM2),
           round1(r.wallpaperAreaM2),
           round1(r.wallpaperLenCm),
-          round1(r.cfLenCm),
+          round1(room.useOtherSheet ? r.otherSheetLenCm : r.cfLenCm),
+          room.useOtherSheet ? "別シート" : "CF",
           room.wallpaperEnabled ? "対象" : "除外",
           room.cfEnabled ? "対象" : "除外",
-          room.purchased ? "完了" : "未発注",
+          room.workDone ? "施工完了" : "未完了",
         ];
       }),
       [],
       ["設定"],
       ["壁紙幅(mm)", num(wallpaperWidth)],
       ["CF幅(mm)", num(cfWidth)],
+      ...(hasOtherSheetRooms ? [["別シート幅(mm)", num(otherSheetWidth)]] : []),
       ["壁紙ロス率(%)", num(wallpaperLossRate)],
       ["CFロス率(%)", num(cfLossRate)],
+      ...(hasOtherSheetRooms ? [["別シートロス率(%)", num(otherSheetLossRate)]] : []),
       ["割増方式", lossModeLabel],
       [],
       ["発注数量サマリー"],
       ["壁紙(実数量合計) cm", round1(totalWallpaperRaw)],
       ["CF(実数量合計) cm", round1(totalCfRaw)],
+      ...(hasOtherSheetRooms ? [["別シート(実数量合計) cm", round1(totalOtherSheetRaw)]] : []),
       ["部屋ごと割増 壁紙 cm", round1(perRoomWallpaperTotal)],
       ["部屋ごと割増 CF cm", round1(perRoomCfTotal)],
+      ...(hasOtherSheetRooms ? [["部屋ごと割増 別シート cm", round1(perRoomOtherSheetTotal)]] : []),
       ["全体一括割増 壁紙 cm", round1(bulkWallpaperTotal)],
       ["全体一括割増 CF cm", round1(bulkCfTotal)],
+      ...(hasOtherSheetRooms ? [["全体一括割増 別シート cm", round1(bulkOtherSheetTotal)]] : []),
       [`総数(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
       [`総数(${lossModeLabel}) CF cm`, roundUp(finalCf)],
-      ["残数量(発注完了の部屋を除く) 壁紙 cm", remainingWallpaper],
-      ["残数量(発注完了の部屋を除く) CF cm", remainingCf],
+      ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, roundUp(finalOtherSheet)]] : []),
+      ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaper],
+      ["残数量(施工完了の部屋を除く) CF cm", remainingCf],
+      ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheet]] : []),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "発注数量");
     XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
@@ -1113,6 +1394,92 @@ export default function WallpaperCalcApp() {
 
       <div
         style={{
+          background: "#243d20",
+          borderRadius: 10,
+          padding: 16,
+          color: "#fff",
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.85 }}>発注数量サマリー</div>
+          <button
+            onClick={exportExcel}
+            style={{
+              fontSize: 12,
+              padding: "6px 10px",
+              borderRadius: 5,
+              border: "1px solid rgba(255,255,255,0.4)",
+              background: "rgba(255,255,255,0.1)",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Excel出力
+          </button>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 4 }}>
+          <span>壁紙(実数量合計)</span>
+          <span>{round1(totalWallpaperRaw)} cm</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: hasOtherSheetRooms ? 4 : 10 }}>
+          <span>CF(実数量合計)</span>
+          <span>{round1(totalCfRaw)} cm</span>
+        </div>
+        {hasOtherSheetRooms && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
+            <span>別シート(実数量合計)</span>
+            <span>{round1(totalOtherSheetRaw)} cm</span>
+          </div>
+        )}
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 10, fontSize: 12, opacity: 0.75 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>部屋ごと割増</span>
+            <span>
+              壁紙 {round1(perRoomWallpaperTotal)}cm / CF {round1(perRoomCfTotal)}cm
+              {hasOtherSheetRooms && ` / 別シート ${round1(perRoomOtherSheetTotal)}cm`}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+            <span>全体一括割増</span>
+            <span>
+              壁紙 {round1(bulkWallpaperTotal)}cm / CF {round1(bulkCfTotal)}cm
+              {hasOtherSheetRooms && ` / 別シート ${round1(bulkOtherSheetTotal)}cm`}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {roundUp(finalWallpaper)} cm</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedWallpaperTotal)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: 26, fontWeight: 800 }}>CF {roundUp(finalCf)} cm</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>¥{yen(adoptedCfTotal)}</span>
+          </div>
+          {hasOtherSheetRooms && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(施工完了の部屋を除く)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</div>
+          {hasOtherSheetRooms && (
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>別シート {remainingOtherSheet} cm</div>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
           background: "#fff",
           border: "1px solid #d8e3cd",
           borderRadius: 10,
@@ -1143,6 +1510,18 @@ export default function WallpaperCalcApp() {
             <Field label="CFロス率(発注余裕分) %">
               <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
             </Field>
+            {hasOtherSheetRooms && (
+              <>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Field label="別シートの基本幅 mm">
+                    <NumInput value={otherSheetWidth} onChange={setOtherSheetWidth} placeholder="1820" />
+                  </Field>
+                  <Field label="別シートロス率 %">
+                    <NumInput value={otherSheetLossRate} onChange={setOtherSheetLossRate} placeholder="3" />
+                  </Field>
+                </div>
+              </>
+            )}
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
               <button
                 onClick={() => setLossMode("perRoom")}
@@ -1232,61 +1611,182 @@ export default function WallpaperCalcApp() {
 
       <div
         style={{
-          background: "#243d20",
+          background: "#fff",
+          border: "1px solid #d8e3cd",
           borderRadius: 10,
-          padding: 16,
-          color: "#fff",
+          padding: 14,
+          marginTop: 16,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.85 }}>発注数量サマリー</div>
-          <button
-            onClick={exportExcel}
-            style={{
-              fontSize: 12,
-              padding: "6px 10px",
-              borderRadius: 5,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "rgba(255,255,255,0.1)",
-              color: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            Excel出力
-          </button>
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setWallpaperCompareOpen(!wallpaperCompareOpen)}
+        >
+          <SectionTitle accent="#5a6b52">仕入れ比較 - 壁紙(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{wallpaperCompareOpen ? "▲" : "▼"}</span>
         </div>
+        {wallpaperCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              数量は壁紙の総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"}・{round1(finalWallpaperM)}m)を使用。単価はm(メートル)あたりで入力。
+            </div>
+            {wallpaperShops.map((shop, i) =>
+              renderMaterialShopCard(
+                shop,
+                i,
+                updateWallpaperShop,
+                cheapestWallpaperPrice,
+                wallpaperShopTotals[i],
+                finalWallpaperM,
+                "#4c6b40",
+                adoptedWallpaperShopId,
+                toggleAdoptWallpaperShop
+              )
+            )}
+          </>
+        )}
+      </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 4 }}>
-          <span>壁紙(実数量合計)</span>
-          <span>{round1(totalWallpaperRaw)} cm</span>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setCfCompareOpen(!cfCompareOpen)}
+        >
+          <SectionTitle accent="#5a6b52">仕入れ比較 - CF(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{cfCompareOpen ? "▲" : "▼"}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
-          <span>CF(実数量合計)</span>
-          <span>{round1(totalCfRaw)} cm</span>
-        </div>
+        {cfCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              数量はCFの総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"}・{round1(finalCfM)}m)を使用。単価はm(メートル)あたりで入力。
+            </div>
+            {cfShops.map((shop, i) =>
+              renderMaterialShopCard(
+                shop,
+                i,
+                updateCfShop,
+                cheapestCfPrice,
+                cfShopTotals[i],
+                finalCfM,
+                "#b8860b",
+                adoptedCfShopId,
+                toggleAdoptCfShop
+              )
+            )}
+          </>
+        )}
+      </div>
 
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 10, fontSize: 12, opacity: 0.75 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>部屋ごと割増</span>
-            <span>壁紙 {round1(perRoomWallpaperTotal)}cm / CF {round1(perRoomCfTotal)}cm</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-            <span>全体一括割増</span>
-            <span>壁紙 {round1(bulkWallpaperTotal)}cm / CF {round1(bulkCfTotal)}cm</span>
-          </div>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setFavoritesOpen(!favoritesOpen)}
+        >
+          <SectionTitle accent="#5a6b52">よく使うショップ(お気に入りURL)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{favoritesOpen ? "▲" : "▼"}</span>
         </div>
-
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {roundUp(finalWallpaper)} cm</div>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>CF {roundUp(finalCf)} cm</div>
-        </div>
-
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(発注完了の部屋を除く)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</div>
-        </div>
+        {favoritesOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 8, lineHeight: 1.6 }}>
+              この端末に保存されます。上の仕入れ比較でボタン一つでURLを差し込めます。
+            </div>
+            {favoriteShops.map((f) => (
+              <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    flex: "1 1 0%",
+                    minWidth: 0,
+                    fontSize: 13,
+                    color: "#33502e",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {f.name}
+                </a>
+                <button
+                  onClick={() => removeFavorite(f.id)}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    flexShrink: 0,
+                    borderRadius: 5,
+                    border: "1px solid #d99",
+                    background: "#fdeeee",
+                    color: "#a33",
+                    cursor: "pointer",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <input
+                value={newFavName}
+                onChange={(e) => setNewFavName(e.target.value)}
+                placeholder="ショップ名"
+                style={{
+                  flex: "1 1 0%",
+                  minWidth: 0,
+                  padding: "7px 8px",
+                  fontSize: 13,
+                  border: "1px solid #cbd5c0",
+                  borderRadius: 5,
+                }}
+              />
+              <input
+                value={newFavUrl}
+                onChange={(e) => setNewFavUrl(e.target.value)}
+                placeholder="URL"
+                style={{
+                  flex: "2 1 0%",
+                  minWidth: 0,
+                  padding: "7px 8px",
+                  fontSize: 13,
+                  border: "1px solid #cbd5c0",
+                  borderRadius: 5,
+                }}
+              />
+              <button
+                onClick={addFavorite}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 5,
+                  border: "1px solid #4c6b40",
+                  background: "#4c6b40",
+                  color: "#fff",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                追加
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
