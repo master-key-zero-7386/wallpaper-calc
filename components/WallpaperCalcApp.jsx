@@ -693,18 +693,17 @@ export default function WallpaperCalcApp() {
   const [cfCompareOpen, setCfCompareOpen] = useState(true);
   const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(true);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
-  const [favoriteShops, setFavoriteShops] = useState([]);
-  const [newFavName, setNewFavName] = useState("");
-  const [newFavUrl, setNewFavUrl] = useState("");
-
-  useEffect(() => {
+  const [favoriteShops, setFavoriteShops] = useState(() => {
+    if (typeof window === "undefined") return [];
     try {
       const raw = window.localStorage.getItem("wpcalc-favorite-shops");
-      if (raw) setFavoriteShops(JSON.parse(raw));
+      return raw ? JSON.parse(raw) : [];
     } catch (e) {
-      // ignore
+      return [];
     }
-  }, []);
+  });
+  const [newFavName, setNewFavName] = useState("");
+  const [newFavUrl, setNewFavUrl] = useState("");
 
   useEffect(() => {
     try {
@@ -1171,28 +1170,6 @@ export default function WallpaperCalcApp() {
             </a>
           )}
         </div>
-        {favoriteShops.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
-            {favoriteShops.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => updateFn(i, { url: f.url })}
-                title={f.url}
-                style={{
-                  fontSize: 11,
-                  padding: "4px 8px",
-                  borderRadius: 12,
-                  border: "1px solid #9ab08c",
-                  background: "#fff",
-                  color: "#4c6b40",
-                  cursor: "pointer",
-                }}
-              >
-                ★{f.name}
-              </button>
-            ))}
-          </div>
-        )}
         <div
           style={{
             marginTop: 8,
