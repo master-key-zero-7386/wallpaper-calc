@@ -1241,6 +1241,19 @@ export default function WallpaperCalcApp() {
 
   const exportExcel = () => {
     const lossModeLabel = lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増";
+    const unitLabelOf = (shop) => (shop.unit === "10cm" ? "円/10cm" : shop.unit === "cm" ? "円/cm" : "円/m");
+    const shopExcelRows = (label, shops, subtotals, totals, adoptedId) =>
+      shops.map((shop, i) => [
+        label,
+        shop.name,
+        num(shop.price),
+        unitLabelOf(shop),
+        num(shop.shipping),
+        Math.round(subtotals[i]),
+        Math.round(totals[i]),
+        shop.id === adoptedId ? "採用" : "",
+        shop.url,
+      ]);
     const rows = [
       [`物件名: ${projectName || "(未保存)"}`],
       [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
@@ -1287,10 +1300,18 @@ export default function WallpaperCalcApp() {
       ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaper],
       ["残数量(施工完了の部屋を除く) CF cm", remainingCf],
       ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheet]] : []),
+      [],
+      ["仕入れ比較(全店舗)"],
+      ["材料", "店舗名", "単価", "単位", "送料", "合計額", "総額", "採用", "URL"],
+      ...shopExcelRows("壁紙", wallpaperShops, wallpaperShopSubtotals, wallpaperShopTotals, adoptedWallpaperShopId),
+      ...shopExcelRows("CF", cfShops, cfShopSubtotals, cfShopTotals, adoptedCfShopId),
+      ...(hasOtherSheetRooms
+        ? shopExcelRows("別シート", otherSheetShops, otherSheetShopSubtotals, otherSheetShopTotals, adoptedOtherSheetShopId)
+        : []),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 32 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "発注数量");
     XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
