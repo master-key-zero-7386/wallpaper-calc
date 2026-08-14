@@ -202,8 +202,8 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
   return (
     <div
       style={{
-        background: "#fff",
-        border: "1px solid #d8e3cd",
+        background: room.purchased ? "#f3f6f0" : "#fff",
+        border: room.purchased ? "1px solid #b9c9ae" : "1px solid #d8e3cd",
         borderRadius: 10,
         marginBottom: 14,
         overflow: "hidden",
@@ -215,7 +215,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
           justifyContent: "space-between",
           alignItems: "center",
           padding: "12px 14px",
-          background: "#eef4e6",
+          background: room.purchased ? "#dfe7d8" : "#eef4e6",
           cursor: "pointer",
         }}
         onClick={onToggleOpen}
@@ -235,6 +235,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 13, color: "#5a6b52" }}>
+            {room.purchased && <span style={{ color: "#4c6b40", fontWeight: 700 }}>済 ・</span>}
             壁{round1(result.wallpaperAreaM2)}㎡/{round1(result.wallpaperLenCm)}cm{!room.wallpaperEnabled ? "(除外)" : ""}・床{round1(result.floorAreaM2)}㎡/{round1(result.cfLenCm)}cm{!room.cfEnabled ? "(除外)" : ""}
           </span>
           <span style={{ fontSize: 18, color: "#5a6b52" }}>{open ? "▲" : "▼"}</span>
@@ -243,6 +244,11 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
 
       {open && (
         <div style={{ padding: 14 }}>
+          <ToggleSwitch
+            checked={room.purchased}
+            onChange={(v) => setField({ purchased: v })}
+            label={room.purchased ? "発注完了(済み)" : "発注完了にする"}
+          />
           <SectionTitle>床 (クッションフロア用)</SectionTitle>
           {room.floors.map((f, i) => (
             <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
@@ -783,6 +789,7 @@ export default function WallpaperCalcApp() {
         id: nextIdSafe(),
         cfEnabled: r.cfEnabled ?? true,
         wallpaperEnabled: r.wallpaperEnabled ?? true,
+        purchased: r.purchased ?? false,
         floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
         extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
         openings: {
@@ -825,13 +832,25 @@ export default function WallpaperCalcApp() {
   const wallpaperLoss = num(wallpaperLossRate) / 100;
   const cfLoss = num(cfLossRate) / 100;
 
-  const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? r.wallpaperLenCm * (1 + wallpaperLoss) : 0), 0);
-  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? r.cfLenCm * (1 + cfLoss) : 0), 0);
+  // 部屋ごと割増:部屋単位で切り上げてから合計(部屋ごとに端材が出て使い回せない前提)
+  const perRoomWallpaperTotal = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? roundUp(r.wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
+  const perRoomCfTotal = results.reduce((s, r, i) => s + (rooms[i].cfEnabled ? roundUp(r.cfLenCm * (1 + cfLoss)) : 0), 0);
+  // 全体一括割増:合計してから1回だけ切り上げ(端材を他の部屋に回せる前提)
   const bulkWallpaperTotal = totalWallpaperRaw * (1 + wallpaperLoss);
   const bulkCfTotal = totalCfRaw * (1 + cfLoss);
 
   const finalWallpaper = lossMode === "perRoom" ? perRoomWallpaperTotal : bulkWallpaperTotal;
   const finalCf = lossMode === "perRoom" ? perRoomCfTotal : bulkCfTotal;
+
+  const unpurchasedIdx = rooms.map((r, i) => (r.purchased ? -1 : i)).filter((i) => i >= 0);
+  const remainingWallpaperRaw = unpurchasedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? results[i].wallpaperLenCm : 0), 0);
+  const remainingCfRaw = unpurchasedIdx.reduce((s, i) => s + (rooms[i].cfEnabled ? results[i].cfLenCm : 0), 0);
+  const remainingWallpaperPerRoom = unpurchasedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? roundUp(results[i].wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
+  const remainingCfPerRoom = unpurchasedIdx.reduce((s, i) => s + (rooms[i].cfEnabled ? roundUp(results[i].cfLenCm * (1 + cfLoss)) : 0), 0);
+  const remainingWallpaperBulk = roundUp(remainingWallpaperRaw * (1 + wallpaperLoss));
+  const remainingCfBulk = roundUp(remainingCfRaw * (1 + cfLoss));
+  const remainingWallpaper = lossMode === "perRoom" ? remainingWallpaperPerRoom : remainingWallpaperBulk;
+  const remainingCf = lossMode === "perRoom" ? remainingCfPerRoom : remainingCfBulk;
 
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
@@ -850,7 +869,7 @@ export default function WallpaperCalcApp() {
       [`物件名: ${projectName || "(未保存)"}`],
       [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
       [],
-      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "CF必要長さ(cm)", "壁紙", "CF"],
+      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "CF必要長さ(cm)", "壁紙", "CF", "発注"],
       ...rooms.map((room, i) => {
         const r = results[i];
         return [
@@ -862,6 +881,7 @@ export default function WallpaperCalcApp() {
           round1(r.cfLenCm),
           room.wallpaperEnabled ? "対象" : "除外",
           room.cfEnabled ? "対象" : "除外",
+          room.purchased ? "完了" : "未発注",
         ];
       }),
       [],
@@ -879,12 +899,14 @@ export default function WallpaperCalcApp() {
       ["部屋ごと割増 CF cm", round1(perRoomCfTotal)],
       ["全体一括割増 壁紙 cm", round1(bulkWallpaperTotal)],
       ["全体一括割増 CF cm", round1(bulkCfTotal)],
-      [`発注量(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
-      [`発注量(${lossModeLabel}) CF cm`, roundUp(finalCf)],
+      [`総数(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
+      [`総数(${lossModeLabel}) CF cm`, roundUp(finalCf)],
+      ["残数量(発注完了の部屋を除く) 壁紙 cm", remainingWallpaper],
+      ["残数量(発注完了の部屋を除く) CF cm", remainingCf],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 8 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "発注数量");
     XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
@@ -1255,9 +1277,15 @@ export default function WallpaperCalcApp() {
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>発注量({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
           <div style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {roundUp(finalWallpaper)} cm</div>
           <div style={{ fontSize: 26, fontWeight: 800 }}>CF {roundUp(finalCf)} cm</div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(発注完了の部屋を除く)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</div>
         </div>
       </div>
     </div>
