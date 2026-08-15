@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   newRoom,
+  newSubRoom,
   emptyOpening,
   emptyWall,
   emptyFloor,
@@ -11,6 +12,7 @@ import {
   round1,
   roundUp,
   computeRoom,
+  migrateRoom,
   computeShopPurchase,
   panelSheetsFromArea,
 } from "../lib/calc";
@@ -230,8 +232,465 @@ function DirectionOpenings({ label, list, onChange }) {
   );
 }
 
+// 部屋本体・追加部屋(床の間など)どちらの入力にも使う共通フォーム。
+// isSub=trueのときは高さ入力を出さず親部屋の高さを表示のみにする。
+function RoomBody({ scope, setField, result, heightMm, isSub }) {
+  return (
+    <>
+      {!isSub && (
+        <ToggleSwitch
+          checked={scope.workDone}
+          onChange={(v) => setField({ workDone: v })}
+          label={scope.workDone ? "施工完了(済み)" : "施工完了にする"}
+        />
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: "1 1 auto" }}>
+          <SectionTitle>床 (クッションフロア用)</SectionTitle>
+        </div>
+        <button
+          onClick={() => setField({ useOtherSheet: !scope.useOtherSheet })}
+          style={{
+            fontSize: 12,
+            padding: "6px 10px",
+            borderRadius: 5,
+            border: scope.useOtherSheet ? "1px solid #b8860b" : "1px solid #9ab08c",
+            background: scope.useOtherSheet ? "#f5e6b8" : "#f3f8ee",
+            color: scope.useOtherSheet ? "#7a5a10" : "#4c6b40",
+            fontWeight: 700,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            marginBottom: 10,
+          }}
+        >
+          {scope.useOtherSheet ? "別シート使用中" : "別シートを使用"}
+        </button>
+      </div>
+      {scope.floors.map((f, i) => (
+        <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder={i === 0 ? "北(南)幅mm" : "縦mm"}
+            value={f.l}
+            onChange={(e) => {
+              const copy = [...scope.floors];
+              copy[i] = { ...f, l: e.target.value };
+              setField({ floors: copy });
+            }}
+            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+          />
+          <span style={{ color: "#8a9a80" }}>×</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder={i === 0 ? "東(西)幅mm" : "横mm"}
+            value={f.w}
+            onChange={(e) => {
+              const copy = [...scope.floors];
+              copy[i] = { ...f, w: e.target.value };
+              setField({ floors: copy });
+            }}
+            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+          />
+          {i === 0 && !isSub && (
+            <>
+              <span style={{ color: "#8a9a80" }}>×</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="高さmm"
+                value={heightMm}
+                onChange={(e) => setField({ height: e.target.value })}
+                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+              />
+            </>
+          )}
+          {scope.floors.length > 1 && (
+            <button
+              onClick={() => setField({ floors: scope.floors.filter((_, idx) => idx !== i) })}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 5,
+                border: "1px solid #d99",
+                background: "#fdeeee",
+                color: "#a33",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      {isSub && (
+        <div style={{ fontSize: 12, color: "#6b7d63", margin: "-2px 0 8px" }}>
+          高さは親部屋と共通({heightMm || "-"}mm)
+        </div>
+      )}
+      <button
+        onClick={() => setField({ floors: [...scope.floors, emptyFloor()] })}
+        style={{
+          fontSize: 13,
+          padding: "5px 10px",
+          borderRadius: 5,
+          border: "1px dashed #9ab08c",
+          background: "#f3f8ee",
+          color: "#4c6b40",
+          cursor: "pointer",
+          marginBottom: 10,
+        }}
+      >
+        + 床区画を追加
+      </button>
+
+      <ToggleSwitch
+        checked={scope.cfEnabled}
+        onChange={(v) => setField({ cfEnabled: v })}
+        label={
+          scope.useOtherSheet
+            ? scope.cfEnabled
+              ? "別シートを貼る (発注数量に含む)"
+              : "別シートを貼らない (発注数量に含まない)"
+            : scope.cfEnabled
+            ? "CFを貼る (発注数量に含む)"
+            : "CFを貼らない (発注数量に含まない)"
+        }
+      />
+
+      <div
+        style={{
+          margin: "6px 0 14px",
+          padding: 10,
+          background: "#fdf6e6",
+          border: "1px solid #ecd9a0",
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#7a5a10", marginBottom: 6 }}>CFの柄タイプ</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: scope.cfPattern ? 8 : 0 }}>
+          <button
+            onClick={() => setField({ cfPattern: false })}
+            style={{
+              flex: "1 1 0%",
+              minWidth: 0,
+              padding: "7px",
+              borderRadius: 6,
+              border: !scope.cfPattern ? "2px solid #4c6b40" : "1px solid #cbd5c0",
+              background: !scope.cfPattern ? "#e6f0dd" : "#fff",
+              color: "#33502e",
+              fontSize: 13,
+              fontWeight: !scope.cfPattern ? 700 : 400,
+              cursor: "pointer",
+            }}
+          >
+            無地(向き自由)
+          </button>
+          <button
+            onClick={() => setField({ cfPattern: true })}
+            style={{
+              flex: "1 1 0%",
+              minWidth: 0,
+              padding: "7px",
+              borderRadius: 6,
+              border: scope.cfPattern ? "2px solid #b8860b" : "1px solid #cbd5c0",
+              background: scope.cfPattern ? "#f5e6b8" : "#fff",
+              color: "#7a5a10",
+              fontSize: 13,
+              fontWeight: scope.cfPattern ? 700 : 400,
+              cursor: "pointer",
+            }}
+          >
+            木目調・柄あり(向き固定)
+          </button>
+        </div>
+        {scope.cfPattern && (
+          <div>
+            <div style={{ fontSize: 12, color: "#7a5a10", marginBottom: 4 }}>柄の流れる方向(床区画①の寸法を使用)</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setField({ cfDirection: "l" })}
+                style={{
+                  flex: "1 1 0%",
+                  minWidth: 0,
+                  padding: "6px",
+                  borderRadius: 6,
+                  border: scope.cfDirection === "l" ? "2px solid #b8860b" : "1px solid #cbd5c0",
+                  background: scope.cfDirection === "l" ? "#f5e6b8" : "#fff",
+                  fontSize: 12,
+                  color: "#7a5a10",
+                  cursor: "pointer",
+                }}
+              >
+                北南方向に柄が流れる
+              </button>
+              <button
+                onClick={() => setField({ cfDirection: "w" })}
+                style={{
+                  flex: "1 1 0%",
+                  minWidth: 0,
+                  padding: "6px",
+                  borderRadius: 6,
+                  border: scope.cfDirection === "w" ? "2px solid #b8860b" : "1px solid #cbd5c0",
+                  background: scope.cfDirection === "w" ? "#f5e6b8" : "#fff",
+                  fontSize: 12,
+                  color: "#7a5a10",
+                  cursor: "pointer",
+                }}
+              >
+                東西方向に柄が流れる
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <ToggleSwitch
+        checked={scope.ceilingEnabled}
+        onChange={(v) => setField({ ceilingEnabled: v })}
+        label={scope.ceilingEnabled ? "天井に壁紙を貼る (床と同面積を発注数量に含む)" : "天井に壁紙を貼らない (発注数量に含まない)"}
+      />
+
+      <ToggleSwitch
+        checked={scope.wallpaperEnabled}
+        onChange={(v) => setField({ wallpaperEnabled: v })}
+        label={scope.wallpaperEnabled ? "壁紙を貼る (壁紙発注数量に含む)" : "壁紙を貼らない (発注数量に含まない)"}
+      />
+
+      <SectionTitle>壁 (北・南)</SectionTitle>
+      <div style={{ fontSize: 12, color: "#6b7d63", marginBottom: 4 }}>
+        幅{scope.floors[0]?.l || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
+      </div>
+      <DirectionOpenings
+        label="北"
+        list={scope.openings.north}
+        onChange={(v) => setField({ openings: { ...scope.openings, north: v } })}
+      />
+      <DirectionOpenings
+        label="南"
+        list={scope.openings.south}
+        onChange={(v) => setField({ openings: { ...scope.openings, south: v } })}
+      />
+
+      <div style={{ height: 1, background: "#d8e3cd", margin: "16px 0" }} />
+      <SectionTitle>壁 (東・西)</SectionTitle>
+      <div style={{ fontSize: 12, color: "#6b7d63", marginBottom: 4 }}>
+        幅{scope.floors[0]?.w || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
+      </div>
+      <DirectionOpenings
+        label="東"
+        list={scope.openings.east}
+        onChange={(v) => setField({ openings: { ...scope.openings, east: v } })}
+      />
+      <DirectionOpenings
+        label="西"
+        list={scope.openings.west}
+        onChange={(v) => setField({ openings: { ...scope.openings, west: v } })}
+      />
+
+      <div style={{ height: 14 }} />
+      <SectionTitle>追加の壁 (増築部・間仕切りなど)</SectionTitle>
+      {scope.extraWalls.map((w, i) => (
+        <div key={w.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="高さmm"
+            value={w.h}
+            onChange={(e) => {
+              const copy = [...scope.extraWalls];
+              copy[i] = { ...w, h: e.target.value };
+              setField({ extraWalls: copy });
+            }}
+            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+          />
+          <span style={{ color: "#8a9a80" }}>×</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="幅mm"
+            value={w.w}
+            onChange={(e) => {
+              const copy = [...scope.extraWalls];
+              copy[i] = { ...w, w: e.target.value };
+              setField({ extraWalls: copy });
+            }}
+            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+          />
+          <button
+            onClick={() => setField({ extraWalls: scope.extraWalls.filter((_, idx) => idx !== i) })}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 5,
+              border: "1px solid #d99",
+              background: "#fdeeee",
+              color: "#a33",
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => setField({ extraWalls: [...scope.extraWalls, emptyWall()] })}
+        style={{
+          fontSize: 13,
+          padding: "5px 10px",
+          borderRadius: 5,
+          border: "1px dashed #9ab08c",
+          background: "#f3f8ee",
+          color: "#4c6b40",
+          cursor: "pointer",
+        }}
+      >
+        + 壁を追加
+      </button>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 12,
+          background: "#f3f8ee",
+          borderRadius: 8,
+          fontSize: 13,
+          color: "#33502e",
+          lineHeight: 1.9,
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 4, color: "#4c6b40" }}>床・天井</div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>床面積(区画合計)</span>
+          <span>{round1(result.floorAreaM2)} ㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>天井面積</span>
+          <span>{scope.ceilingEnabled ? round1(result.ceilingAreaM2) + " ㎡" : "対象外(0㎡)"}</span>
+        </div>
+
+        <div style={{ fontWeight: 700, margin: "10px 0 4px", color: "#4c6b40" }}>壁(方角別、開口部差引前 → 差引後)</div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>北</span>
+          <span>{round1(result.northArea)}㎡ − 開口{round1(result.openN)}㎡ = {round1(result.netNorth)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>南</span>
+          <span>{round1(result.southArea)}㎡ − 開口{round1(result.openS)}㎡ = {round1(result.netSouth)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>東</span>
+          <span>{round1(result.eastArea)}㎡ − 開口{round1(result.openE)}㎡ = {round1(result.netEast)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>西</span>
+          <span>{round1(result.westArea)}㎡ − 開口{round1(result.openW)}㎡ = {round1(result.netWest)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>追加壁</span>
+          <span>{round1(result.extraArea)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 4, borderTop: "1px dashed #b9c9ab", paddingTop: 4 }}>
+          <span>北南計</span>
+          <span>{round1(result.nsSubtotal)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+          <span>東西計</span>
+          <span>{round1(result.ewSubtotal)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+          <span>壁合計(天井含まず)</span>
+          <span>{round1(result.wallAreaM2)}㎡</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#243d20" }}>
+          <span>壁紙対象合計(壁+天井)</span>
+          <span>{round1(result.wallpaperAreaM2)}㎡</span>
+        </div>
+
+        <div style={{ borderTop: "1px solid #b9c9ab", marginTop: 8, paddingTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+            <span>壁紙必要長さ(実数量)</span>
+            <span>{round1(result.wallpaperLenCm)} cm</span>
+          </div>
+          {!scope.wallpaperEnabled && (
+            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !scope.wallpaperEnabled ? 8 : 0 }}>
+            <span>{scope.useOtherSheet ? "別シート必要長さ(実数量)" : "CF必要長さ(実数量)"}</span>
+            <span>
+              {round1(scope.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)} cm
+              {scope.cfPattern ? `(${scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚継ぎ)` : ""}
+            </span>
+          </div>
+          {!scope.cfEnabled && (
+            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+          )}
+          {scope.cfPattern && (
+            <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
+              柄あり計算:幅方向がロール幅を超えるため{scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
+            </div>
+          )}
+          {(scope.useOtherSheet ? result.otherSheetNote : result.cfNote) && (
+            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>
+              {scope.useOtherSheet ? result.otherSheetNote : result.cfNote}
+            </div>
+          )}
+          {result.aluminumPanelAreaM2 > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+              <span>アルミ複合板必要面積</span>
+              <span>{round1(result.aluminumPanelAreaM2)} ㎡</span>
+            </div>
+          )}
+          {result.gypsumBoardAreaM2 > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+              <span>石膏ボード必要面積</span>
+              <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// 追加部屋(床の間など)。親部屋と同じ入力項目を持つが高さだけは親と共通。
+function SubRoomCard({ subRoom, setField, removeSubRoom, result, heightMm }) {
+  return (
+    <div style={{ background: "#fbfdf9", border: "1px dashed #9ab08c", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+        <input
+          value={subRoom.name}
+          onChange={(e) => setField({ name: e.target.value })}
+          style={{ fontSize: 14, fontWeight: 700, border: "none", background: "transparent", color: "#33502e", flex: "1 1 auto" }}
+        />
+        <button
+          onClick={removeSubRoom}
+          style={{
+            fontSize: 12,
+            padding: "4px 10px",
+            borderRadius: 5,
+            border: "1px solid #d99",
+            background: "#fdeeee",
+            color: "#a33",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          この追加部屋を削除
+        </button>
+      </div>
+      <RoomBody scope={subRoom} setField={setField} result={result} heightMm={heightMm} isSub={true} />
+    </div>
+  );
+}
+
 function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) {
   const setField = (patch) => updateRoom({ ...room, ...patch });
+  const setSubField = (subId) => (patch) =>
+    setField({ subRooms: room.subRooms.map((sr) => (sr.id === subId ? { ...sr, ...patch } : sr)) });
+  const removeSubRoom = (subId) => setField({ subRooms: room.subRooms.filter((sr) => sr.id !== subId) });
+  const addSubRoom = () => setField({ subRooms: [...room.subRooms, newSubRoom(`追加部屋${room.subRooms.length + 1}`)] });
 
   return (
     <div
@@ -278,80 +737,22 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
 
       {open && (
         <div style={{ padding: 14 }}>
-          <ToggleSwitch
-            checked={room.workDone}
-            onChange={(v) => setField({ workDone: v })}
-            label={room.workDone ? "施工完了(済み)" : "施工完了にする"}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <div style={{ flex: "1 1 auto" }}>
-              <SectionTitle>床 (クッションフロア用)</SectionTitle>
-            </div>
-            <button
-              onClick={() => setField({ useOtherSheet: !room.useOtherSheet })}
-              style={{
-                fontSize: 12,
-                padding: "6px 10px",
-                borderRadius: 5,
-                border: room.useOtherSheet ? "1px solid #b8860b" : "1px solid #9ab08c",
-                background: room.useOtherSheet ? "#f5e6b8" : "#f3f8ee",
-                color: room.useOtherSheet ? "#7a5a10" : "#4c6b40",
-                fontWeight: 700,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                marginBottom: 10,
-              }}
-            >
-              {room.useOtherSheet ? "別シート使用中" : "別シートを使用"}
-            </button>
-          </div>
-          {room.floors.map((f, i) => (
-            <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="縦mm"
-                value={f.l}
-                onChange={(e) => {
-                  const copy = [...room.floors];
-                  copy[i] = { ...f, l: e.target.value };
-                  setField({ floors: copy });
-                }}
-                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-              />
-              <span style={{ color: "#8a9a80" }}>×</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="横mm"
-                value={f.w}
-                onChange={(e) => {
-                  const copy = [...room.floors];
-                  copy[i] = { ...f, w: e.target.value };
-                  setField({ floors: copy });
-                }}
-                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-              />
-              {room.floors.length > 1 && (
-                <button
-                  onClick={() => setField({ floors: room.floors.filter((_, idx) => idx !== i) })}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 5,
-                    border: "1px solid #d99",
-                    background: "#fdeeee",
-                    color: "#a33",
-                    cursor: "pointer",
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
+          <RoomBody scope={room} setField={setField} result={result.main} heightMm={room.height} isSub={false} />
+
+          <div style={{ height: 14 }} />
+          <SectionTitle>追加部屋 (床の間など、この部屋とつながった凸部)</SectionTitle>
+          {room.subRooms.map((sr, i) => (
+            <SubRoomCard
+              key={sr.id}
+              subRoom={sr}
+              setField={setSubField(sr.id)}
+              removeSubRoom={() => removeSubRoom(sr.id)}
+              result={result.subs[i]?.result}
+              heightMm={room.height}
+            />
           ))}
           <button
-            onClick={() => setField({ floors: [...room.floors, emptyFloor()] })}
+            onClick={addSubRoom}
             style={{
               fontSize: 13,
               padding: "5px 10px",
@@ -363,324 +764,33 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
               marginBottom: 10,
             }}
           >
-            + 床区画を追加
+            + 追加部屋を追加(床の間など)
           </button>
 
-          <ToggleSwitch
-            checked={room.cfEnabled}
-            onChange={(v) => setField({ cfEnabled: v })}
-            label={
-              room.useOtherSheet
-                ? room.cfEnabled
-                  ? "別シートを貼る (発注数量に含む)"
-                  : "別シートを貼らない (発注数量に含まない)"
-                : room.cfEnabled
-                ? "CFを貼る (発注数量に含む)"
-                : "CFを貼らない (発注数量に含まない)"
-            }
-          />
-
-          <div
-            style={{
-              margin: "6px 0 14px",
-              padding: 10,
-              background: "#fdf6e6",
-              border: "1px solid #ecd9a0",
-              borderRadius: 8,
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#7a5a10", marginBottom: 6 }}>CFの柄タイプ</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: room.cfPattern ? 8 : 0 }}>
-              <button
-                onClick={() => setField({ cfPattern: false })}
-                style={{
-                  flex: "1 1 0%",
-                  minWidth: 0,
-                  padding: "7px",
-                  borderRadius: 6,
-                  border: !room.cfPattern ? "2px solid #4c6b40" : "1px solid #cbd5c0",
-                  background: !room.cfPattern ? "#e6f0dd" : "#fff",
-                  color: "#33502e",
-                  fontSize: 13,
-                  fontWeight: !room.cfPattern ? 700 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                無地(向き自由)
-              </button>
-              <button
-                onClick={() => setField({ cfPattern: true })}
-                style={{
-                  flex: "1 1 0%",
-                  minWidth: 0,
-                  padding: "7px",
-                  borderRadius: 6,
-                  border: room.cfPattern ? "2px solid #b8860b" : "1px solid #cbd5c0",
-                  background: room.cfPattern ? "#f5e6b8" : "#fff",
-                  color: "#7a5a10",
-                  fontSize: 13,
-                  fontWeight: room.cfPattern ? 700 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                木目調・柄あり(向き固定)
-              </button>
-            </div>
-            {room.cfPattern && (
-              <div>
-                <div style={{ fontSize: 12, color: "#7a5a10", marginBottom: 4 }}>柄の流れる方向(床区画①の寸法を使用)</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => setField({ cfDirection: "l" })}
-                    style={{
-                      flex: "1 1 0%",
-                      minWidth: 0,
-                      padding: "6px",
-                      borderRadius: 6,
-                      border: room.cfDirection === "l" ? "2px solid #b8860b" : "1px solid #cbd5c0",
-                      background: room.cfDirection === "l" ? "#f5e6b8" : "#fff",
-                      fontSize: 12,
-                      color: "#7a5a10",
-                      cursor: "pointer",
-                    }}
-                  >
-                    縦(長)方向に柄が流れる
-                  </button>
-                  <button
-                    onClick={() => setField({ cfDirection: "w" })}
-                    style={{
-                      flex: "1 1 0%",
-                      minWidth: 0,
-                      padding: "6px",
-                      borderRadius: 6,
-                      border: room.cfDirection === "w" ? "2px solid #b8860b" : "1px solid #cbd5c0",
-                      background: room.cfDirection === "w" ? "#f5e6b8" : "#fff",
-                      fontSize: 12,
-                      color: "#7a5a10",
-                      cursor: "pointer",
-                    }}
-                  >
-                    横(短)方向に柄が流れる
-                  </button>
-                </div>
+          {room.subRooms.length > 0 && (
+            <div
+              style={{
+                marginTop: 4,
+                marginBottom: 10,
+                padding: 12,
+                background: "#eef4e6",
+                border: "1px solid #b9c9ab",
+                borderRadius: 8,
+                fontSize: 13,
+                color: "#243d20",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>部屋+追加部屋 合計</div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>壁紙対象合計</span>
+                <span>{round1(result.wallpaperAreaM2)}㎡ / {round1(result.wallpaperLenCm)}cm</span>
               </div>
-            )}
-          </div>
-
-          <ToggleSwitch
-            checked={room.ceilingEnabled}
-            onChange={(v) => setField({ ceilingEnabled: v })}
-            label={room.ceilingEnabled ? "天井に壁紙を貼る (床と同面積を発注数量に含む)" : "天井に壁紙を貼らない (発注数量に含まない)"}
-          />
-
-          <ToggleSwitch
-            checked={room.wallpaperEnabled}
-            onChange={(v) => setField({ wallpaperEnabled: v })}
-            label={room.wallpaperEnabled ? "壁紙を貼る (壁紙発注数量に含む)" : "壁紙を貼らない (発注数量に含まない)"}
-          />
-
-          <SectionTitle>壁 (北・南)</SectionTitle>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Field label="高さ mm">
-              <NumInput value={room.ns.h} onChange={(v) => setField({ ns: { ...room.ns, h: v } })} placeholder="2400" />
-            </Field>
-            <Field label="幅(北側) mm">
-              <NumInput value={room.ns.w} onChange={(v) => setField({ ns: { ...room.ns, w: v } })} placeholder="3500" />
-            </Field>
-          </div>
-          <DirectionOpenings
-            label="北"
-            list={room.openings.north}
-            onChange={(v) => setField({ openings: { ...room.openings, north: v } })}
-          />
-          <DirectionOpenings
-            label="南"
-            list={room.openings.south}
-            onChange={(v) => setField({ openings: { ...room.openings, south: v } })}
-          />
-
-          <div style={{ height: 1, background: "#d8e3cd", margin: "16px 0" }} />
-          <SectionTitle>壁 (東・西)</SectionTitle>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Field label="高さ mm">
-              <NumInput value={room.ew.h} onChange={(v) => setField({ ew: { ...room.ew, h: v } })} placeholder="2400" />
-            </Field>
-            <Field label="幅(東側) mm">
-              <NumInput value={room.ew.w} onChange={(v) => setField({ ew: { ...room.ew, w: v } })} placeholder="2600" />
-            </Field>
-          </div>
-          <DirectionOpenings
-            label="東"
-            list={room.openings.east}
-            onChange={(v) => setField({ openings: { ...room.openings, east: v } })}
-          />
-          <DirectionOpenings
-            label="西"
-            list={room.openings.west}
-            onChange={(v) => setField({ openings: { ...room.openings, west: v } })}
-          />
-
-          <div style={{ height: 14 }} />
-          <SectionTitle>追加の壁 (増築部・間仕切りなど)</SectionTitle>
-          {room.extraWalls.map((w, i) => (
-            <div key={w.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="高さmm"
-                value={w.h}
-                onChange={(e) => {
-                  const copy = [...room.extraWalls];
-                  copy[i] = { ...w, h: e.target.value };
-                  setField({ extraWalls: copy });
-                }}
-                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-              />
-              <span style={{ color: "#8a9a80" }}>×</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="幅mm"
-                value={w.w}
-                onChange={(e) => {
-                  const copy = [...room.extraWalls];
-                  copy[i] = { ...w, w: e.target.value };
-                  setField({ extraWalls: copy });
-                }}
-                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-              />
-              <button
-                onClick={() => setField({ extraWalls: room.extraWalls.filter((_, idx) => idx !== i) })}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 5,
-                  border: "1px solid #d99",
-                  background: "#fdeeee",
-                  color: "#a33",
-                  cursor: "pointer",
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={() => setField({ extraWalls: [...room.extraWalls, emptyWall()] })}
-            style={{
-              fontSize: 13,
-              padding: "5px 10px",
-              borderRadius: 5,
-              border: "1px dashed #9ab08c",
-              background: "#f3f8ee",
-              color: "#4c6b40",
-              cursor: "pointer",
-            }}
-          >
-            + 壁を追加
-          </button>
-
-          <div
-            style={{
-              marginTop: 16,
-              padding: 12,
-              background: "#f3f8ee",
-              borderRadius: 8,
-              fontSize: 13,
-              color: "#33502e",
-              lineHeight: 1.9,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 4, color: "#4c6b40" }}>床・天井</div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>床面積(区画合計)</span>
-              <span>{round1(result.floorAreaM2)} ㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>天井面積</span>
-              <span>{room.ceilingEnabled ? round1(result.ceilingAreaM2) + " ㎡" : "対象外(0㎡)"}</span>
-            </div>
-
-            <div style={{ fontWeight: 700, margin: "10px 0 4px", color: "#4c6b40" }}>壁(方角別、開口部差引前 → 差引後)</div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>北</span>
-              <span>{round1(result.northArea)}㎡ − 開口{round1(result.openN)}㎡ = {round1(result.netNorth)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>南</span>
-              <span>{round1(result.southArea)}㎡ − 開口{round1(result.openS)}㎡ = {round1(result.netSouth)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>東</span>
-              <span>{round1(result.eastArea)}㎡ − 開口{round1(result.openE)}㎡ = {round1(result.netEast)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>西</span>
-              <span>{round1(result.westArea)}㎡ − 開口{round1(result.openW)}㎡ = {round1(result.netWest)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>追加壁</span>
-              <span>{round1(result.extraArea)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 4, borderTop: "1px dashed #b9c9ab", paddingTop: 4 }}>
-              <span>北南計</span>
-              <span>{round1(result.nsSubtotal)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-              <span>東西計</span>
-              <span>{round1(result.ewSubtotal)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-              <span>壁合計(天井含まず)</span>
-              <span>{round1(result.wallAreaM2)}㎡</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#243d20" }}>
-              <span>壁紙対象合計(壁+天井)</span>
-              <span>{round1(result.wallpaperAreaM2)}㎡</span>
-            </div>
-
-            <div style={{ borderTop: "1px solid #b9c9ab", marginTop: 8, paddingTop: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-                <span>壁紙必要長さ(実数量)</span>
-                <span>{round1(result.wallpaperLenCm)} cm</span>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>床合計</span>
+                <span>{round1(result.floorAreaM2)}㎡ / {round1(room.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)}cm</span>
               </div>
-              {!room.wallpaperEnabled && (
-                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !room.wallpaperEnabled ? 8 : 0 }}>
-                <span>{room.useOtherSheet ? "別シート必要長さ(実数量)" : "CF必要長さ(実数量)"}</span>
-                <span>
-                  {round1(room.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)} cm
-                  {room.cfPattern ? `(${room.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚継ぎ)` : ""}
-                </span>
-              </div>
-              {!room.cfEnabled && (
-                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
-              )}
-              {room.cfPattern && (
-                <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
-                  柄あり計算:幅方向がロール幅を超えるため{room.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
-                </div>
-              )}
-              {(room.useOtherSheet ? result.otherSheetNote : result.cfNote) && (
-                <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>
-                  {room.useOtherSheet ? result.otherSheetNote : result.cfNote}
-                </div>
-              )}
-              {result.aluminumPanelAreaM2 > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
-                  <span>アルミ複合板必要面積</span>
-                  <span>{round1(result.aluminumPanelAreaM2)} ㎡</span>
-                </div>
-              )}
-              {result.gypsumBoardAreaM2 > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
-                  <span>石膏ボード必要面積</span>
-                  <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
-                </div>
-              )}
             </div>
-          </div>
+          )}
 
           <button
             onClick={removeRoom}
@@ -988,22 +1098,38 @@ export default function WallpaperCalcApp() {
         id: nextIdSafe(),
         material: o.material ?? (o.isAluminumPanel ? "aluminum" : "opening"),
       });
-      const reIdRoom = (r) => ({
-        ...r,
-        id: nextIdSafe(),
-        cfEnabled: r.cfEnabled ?? true,
-        wallpaperEnabled: r.wallpaperEnabled ?? true,
-        useOtherSheet: r.useOtherSheet ?? false,
-        workDone: r.workDone ?? false,
-        floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
-        extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
-        openings: {
-          north: r.openings.north.map(migrateOpening),
-          south: r.openings.south.map(migrateOpening),
-          east: r.openings.east.map(migrateOpening),
-          west: r.openings.west.map(migrateOpening),
-        },
+      const reIdOpenings = (openings) => ({
+        north: openings.north.map(migrateOpening),
+        south: openings.south.map(migrateOpening),
+        east: openings.east.map(migrateOpening),
+        west: openings.west.map(migrateOpening),
       });
+      const reIdSubRoom = (sr) => ({
+        ...sr,
+        id: nextIdSafe(),
+        cfEnabled: sr.cfEnabled ?? true,
+        wallpaperEnabled: sr.wallpaperEnabled ?? true,
+        useOtherSheet: sr.useOtherSheet ?? false,
+        floors: sr.floors.map((f) => ({ ...f, id: nextIdSafe() })),
+        extraWalls: sr.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
+        openings: reIdOpenings(sr.openings),
+      });
+      // 旧データ(床の縦横とは別にns/ewを個別入力していた頃)をmigrateRoomで現行形式に変換してから再ID
+      const reIdRoom = (rawR) => {
+        const r = migrateRoom(rawR);
+        return {
+          ...r,
+          id: nextIdSafe(),
+          cfEnabled: r.cfEnabled ?? true,
+          wallpaperEnabled: r.wallpaperEnabled ?? true,
+          useOtherSheet: r.useOtherSheet ?? false,
+          workDone: r.workDone ?? false,
+          floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
+          extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
+          openings: reIdOpenings(r.openings),
+          subRooms: (r.subRooms || []).map(reIdSubRoom),
+        };
+      };
       const loadedRooms = payload.rooms.map(reIdRoom);
       const loadedWallpaperShops = payload.wallpaperShops ?? defaultMaterialShops("wp");
       const loadedCfShops = payload.cfShops ?? defaultMaterialShops("cf");
@@ -1071,11 +1197,9 @@ export default function WallpaperCalcApp() {
 
   const roomHasData = (room) =>
     room.floors.some((f) => num(f.l) > 0 || num(f.w) > 0) ||
-    num(room.ns.h) > 0 ||
-    num(room.ns.w) > 0 ||
-    num(room.ew.h) > 0 ||
-    num(room.ew.w) > 0 ||
-    room.extraWalls.some((w) => num(w.h) > 0 || num(w.w) > 0);
+    num(room.height) > 0 ||
+    room.extraWalls.some((w) => num(w.h) > 0 || num(w.w) > 0) ||
+    (room.subRooms || []).some((sr) => roomHasData(sr));
 
   const shopsHaveData = (shops) => shops.some((s) => num(s.price) > 0 || (s.url && s.url.trim()));
 
