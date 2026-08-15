@@ -12,7 +12,7 @@ import {
   roundUp,
   computeRoom,
   computeShopPurchase,
-  aluminumPanelSheets,
+  panelSheetsFromArea,
 } from "../lib/calc";
 
 let localUid = 1;
@@ -147,22 +147,35 @@ function OpeningRow({ opening, onChange, onRemove }) {
           ×
         </button>
       </div>
-      <button
-        onClick={() => onChange({ ...opening, isAluminumPanel: !opening.isAluminumPanel })}
-        style={{
-          marginTop: 4,
-          fontSize: 11,
-          padding: "3px 8px",
-          borderRadius: 5,
-          border: opening.isAluminumPanel ? "1px solid #6b4c8a" : "1px solid #cbd5c0",
-          background: opening.isAluminumPanel ? "#ece3f5" : "#f7f7f7",
-          color: opening.isAluminumPanel ? "#6b4c8a" : "#8a9a80",
-          fontWeight: opening.isAluminumPanel ? 700 : 400,
-          cursor: "pointer",
-        }}
-      >
-        {opening.isAluminumPanel ? "アルミ複合板を採用中" : "開口部として計算(タップでアルミ複合板に切替)"}
-      </button>
+      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+        {[
+          { value: "opening", label: "開口部", color: "#5a6b52" },
+          { value: "aluminum", label: "アルミ複合板", color: "#6b4c8a" },
+          { value: "gypsum", label: "石膏ボード", color: "#b8860b" },
+        ].map((opt) => {
+          const active = (opening.material ?? "opening") === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onChange({ ...opening, material: opt.value })}
+              style={{
+                flex: "1 1 0%",
+                minWidth: 0,
+                fontSize: 11,
+                padding: "4px 4px",
+                borderRadius: 5,
+                border: active ? `1px solid ${opt.color}` : "1px solid #cbd5c0",
+                background: active ? `${opt.color}22` : "#f7f7f7",
+                color: active ? opt.color : "#8a9a80",
+                fontWeight: active ? 700 : 400,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -182,10 +195,10 @@ function DirectionOpenings({ label, list, onChange }) {
           marginBottom: 6,
         }}
       >
-        {label}の開口部(窓・入口など)
+        {label}の壁(施工しない/別施工する部分)
       </div>
       {list.length === 0 && (
-        <div style={{ fontSize: 12, color: "#9aa892", marginBottom: 4 }}>開口部なし</div>
+        <div style={{ fontSize: 12, color: "#9aa892", marginBottom: 4 }}>特殊部分なし</div>
       )}
       {list.map((o, i) => (
         <OpeningRow
@@ -211,7 +224,7 @@ function DirectionOpenings({ label, list, onChange }) {
           cursor: "pointer",
         }}
       >
-        + {label}に開口部を追加
+        + {label}に特殊部分を追加
       </button>
     </div>
   );
@@ -660,6 +673,12 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
                   <span>{round1(result.aluminumPanelAreaM2)} ㎡</span>
                 </div>
               )}
+              {result.gypsumBoardAreaM2 > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+                  <span>石膏ボード必要面積</span>
+                  <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -694,6 +713,8 @@ export default function WallpaperCalcApp() {
   const [otherSheetLossRate, setOtherSheetLossRate] = useState("3");
   const [aluminumPanelWidth, setAluminumPanelWidth] = useState("910");
   const [aluminumPanelHeight, setAluminumPanelHeight] = useState("1820");
+  const [gypsumBoardWidth, setGypsumBoardWidth] = useState("910");
+  const [gypsumBoardHeight, setGypsumBoardHeight] = useState("1820");
   const [lossMode, setLossMode] = useState("perRoom");
 
   const [projectName, setProjectName] = useState("");
@@ -711,23 +732,26 @@ export default function WallpaperCalcApp() {
     { id: `${prefix}B`, name: "店舗B", price: "", unit: "m", shipping: "", url: "" },
     { id: `${prefix}C`, name: "店舗C", price: "", unit: "m", shipping: "", url: "" },
   ];
-  const defaultAluminumShops = () => [
-    { id: "alA", name: "店舗A", price: "", shipping: "", url: "" },
-    { id: "alB", name: "店舗B", price: "", shipping: "", url: "" },
-    { id: "alC", name: "店舗C", price: "", shipping: "", url: "" },
+  const defaultPanelShops = (prefix) => [
+    { id: `${prefix}A`, name: "店舗A", price: "", shipping: "", url: "" },
+    { id: `${prefix}B`, name: "店舗B", price: "", shipping: "", url: "" },
+    { id: `${prefix}C`, name: "店舗C", price: "", shipping: "", url: "" },
   ];
   const [wallpaperShops, setWallpaperShops] = useState(defaultMaterialShops("wp"));
   const [cfShops, setCfShops] = useState(defaultMaterialShops("cf"));
   const [otherSheetShops, setOtherSheetShops] = useState(defaultMaterialShops("os"));
-  const [aluminumShops, setAluminumShops] = useState(defaultAluminumShops());
+  const [aluminumShops, setAluminumShops] = useState(defaultPanelShops("al"));
+  const [gypsumShops, setGypsumShops] = useState(defaultPanelShops("gy"));
   const [adoptedWallpaperShopId, setAdoptedWallpaperShopId] = useState(null);
   const [adoptedCfShopId, setAdoptedCfShopId] = useState(null);
   const [adoptedOtherSheetShopId, setAdoptedOtherSheetShopId] = useState(null);
   const [adoptedAluminumShopId, setAdoptedAluminumShopId] = useState(null);
+  const [adoptedGypsumShopId, setAdoptedGypsumShopId] = useState(null);
   const [wallpaperCompareOpen, setWallpaperCompareOpen] = useState(true);
   const [cfCompareOpen, setCfCompareOpen] = useState(true);
   const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(true);
   const [aluminumCompareOpen, setAluminumCompareOpen] = useState(true);
+  const [gypsumCompareOpen, setGypsumCompareOpen] = useState(true);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [favoriteShops, setFavoriteShops] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -756,10 +780,13 @@ export default function WallpaperCalcApp() {
     setOtherSheetShops(otherSheetShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const updateAluminumShop = (i, patch) =>
     setAluminumShops(aluminumShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  const updateGypsumShop = (i, patch) =>
+    setGypsumShops(gypsumShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const toggleAdoptWallpaperShop = (id) => setAdoptedWallpaperShopId((prev) => (prev === id ? null : id));
   const toggleAdoptCfShop = (id) => setAdoptedCfShopId((prev) => (prev === id ? null : id));
   const toggleAdoptOtherSheetShop = (id) => setAdoptedOtherSheetShopId((prev) => (prev === id ? null : id));
   const toggleAdoptAluminumShop = (id) => setAdoptedAluminumShopId((prev) => (prev === id ? null : id));
+  const toggleAdoptGypsumShop = (id) => setAdoptedGypsumShopId((prev) => (prev === id ? null : id));
   const addFavorite = () => {
     if (!newFavUrl.trim()) return;
     setFavoriteShops([
@@ -800,6 +827,8 @@ export default function WallpaperCalcApp() {
         otherSheetWidth,
         aluminumPanelWidth,
         aluminumPanelHeight,
+        gypsumBoardWidth,
+        gypsumBoardHeight,
         wallpaperLossRate,
         cfLossRate,
         otherSheetLossRate,
@@ -808,10 +837,12 @@ export default function WallpaperCalcApp() {
         cfShops,
         otherSheetShops,
         aluminumShops,
+        gypsumShops,
         adoptedWallpaperShopId,
         adoptedCfShopId,
         adoptedOtherSheetShopId,
         adoptedAluminumShopId,
+        adoptedGypsumShopId,
       };
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -835,6 +866,8 @@ export default function WallpaperCalcApp() {
     setOtherSheetWidth("1820");
     setAluminumPanelWidth("910");
     setAluminumPanelHeight("1820");
+    setGypsumBoardWidth("910");
+    setGypsumBoardHeight("1820");
     setWallpaperLossRate("8");
     setCfLossRate("3");
     setOtherSheetLossRate("3");
@@ -842,15 +875,18 @@ export default function WallpaperCalcApp() {
     setWallpaperShops(defaultMaterialShops("wp"));
     setCfShops(defaultMaterialShops("cf"));
     setOtherSheetShops(defaultMaterialShops("os"));
-    setAluminumShops(defaultAluminumShops());
+    setAluminumShops(defaultPanelShops("al"));
+    setGypsumShops(defaultPanelShops("gy"));
     setAdoptedWallpaperShopId(null);
     setAdoptedCfShopId(null);
     setAdoptedOtherSheetShopId(null);
     setAdoptedAluminumShopId(null);
+    setAdoptedGypsumShopId(null);
     setWallpaperCompareOpen(true);
     setCfCompareOpen(true);
     setOtherSheetCompareOpen(true);
     setAluminumCompareOpen(true);
+    setGypsumCompareOpen(true);
     setOpenRooms({});
     setSettingsOpen(false);
     setProjectName("");
@@ -946,6 +982,12 @@ export default function WallpaperCalcApp() {
       if (!res.ok) throw new Error("not found");
       const project = await res.json();
       const payload = project.payload;
+      // 旧データのisAluminumPanel(真偽値)をmaterialフィールドに変換(後方互換)
+      const migrateOpening = (o) => ({
+        ...o,
+        id: nextIdSafe(),
+        material: o.material ?? (o.isAluminumPanel ? "aluminum" : "opening"),
+      });
       const reIdRoom = (r) => ({
         ...r,
         id: nextIdSafe(),
@@ -956,17 +998,18 @@ export default function WallpaperCalcApp() {
         floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
         extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
         openings: {
-          north: r.openings.north.map((o) => ({ ...o, id: nextIdSafe(), isAluminumPanel: o.isAluminumPanel ?? false })),
-          south: r.openings.south.map((o) => ({ ...o, id: nextIdSafe(), isAluminumPanel: o.isAluminumPanel ?? false })),
-          east: r.openings.east.map((o) => ({ ...o, id: nextIdSafe(), isAluminumPanel: o.isAluminumPanel ?? false })),
-          west: r.openings.west.map((o) => ({ ...o, id: nextIdSafe(), isAluminumPanel: o.isAluminumPanel ?? false })),
+          north: r.openings.north.map(migrateOpening),
+          south: r.openings.south.map(migrateOpening),
+          east: r.openings.east.map(migrateOpening),
+          west: r.openings.west.map(migrateOpening),
         },
       });
       const loadedRooms = payload.rooms.map(reIdRoom);
       const loadedWallpaperShops = payload.wallpaperShops ?? defaultMaterialShops("wp");
       const loadedCfShops = payload.cfShops ?? defaultMaterialShops("cf");
       const loadedOtherSheetShops = payload.otherSheetShops ?? defaultMaterialShops("os");
-      const loadedAluminumShops = payload.aluminumShops ?? defaultAluminumShops();
+      const loadedAluminumShops = payload.aluminumShops ?? defaultPanelShops("al");
+      const loadedGypsumShops = payload.gypsumShops ?? defaultPanelShops("gy");
 
       setRooms(loadedRooms);
       setWallpaperWidth(payload.wallpaperWidth ?? "910");
@@ -974,6 +1017,8 @@ export default function WallpaperCalcApp() {
       setOtherSheetWidth(payload.otherSheetWidth ?? "1820");
       setAluminumPanelWidth(payload.aluminumPanelWidth ?? "910");
       setAluminumPanelHeight(payload.aluminumPanelHeight ?? "1820");
+      setGypsumBoardWidth(payload.gypsumBoardWidth ?? "910");
+      setGypsumBoardHeight(payload.gypsumBoardHeight ?? "1820");
       setWallpaperLossRate(payload.wallpaperLossRate ?? "10");
       setCfLossRate(payload.cfLossRate ?? "3");
       setOtherSheetLossRate(payload.otherSheetLossRate ?? "3");
@@ -982,16 +1027,19 @@ export default function WallpaperCalcApp() {
       setCfShops(loadedCfShops);
       setOtherSheetShops(loadedOtherSheetShops);
       setAluminumShops(loadedAluminumShops);
+      setGypsumShops(loadedGypsumShops);
       setAdoptedWallpaperShopId(payload.adoptedWallpaperShopId ?? null);
       setAdoptedCfShopId(payload.adoptedCfShopId ?? null);
       setAdoptedOtherSheetShopId(payload.adoptedOtherSheetShopId ?? null);
       setAdoptedAluminumShopId(payload.adoptedAluminumShopId ?? null);
+      setAdoptedGypsumShopId(payload.adoptedGypsumShopId ?? null);
       // 入力済みのデータは初期状態で閉じておく(空の項目だけ開いたままにする)
       setOpenRooms(Object.fromEntries(loadedRooms.map((r) => [r.id, !roomHasData(r)])));
       setWallpaperCompareOpen(!shopsHaveData(loadedWallpaperShops));
       setCfCompareOpen(!shopsHaveData(loadedCfShops));
       setOtherSheetCompareOpen(!shopsHaveData(loadedOtherSheetShops));
       setAluminumCompareOpen(!shopsHaveData(loadedAluminumShops));
+      setGypsumCompareOpen(!shopsHaveData(loadedGypsumShops));
       setSettingsOpen(false);
       setProjectName(project.name ?? name);
       setProjectStatus(`「${project.name ?? name}」を開きました`);
@@ -1015,7 +1063,10 @@ export default function WallpaperCalcApp() {
   const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth), num(otherSheetWidth)));
   const hasOtherSheetRooms = rooms.some((r) => r.useOtherSheet);
   const hasAluminumPanels = rooms.some((r) =>
-    [...r.openings.north, ...r.openings.south, ...r.openings.east, ...r.openings.west].some((o) => o.isAluminumPanel)
+    [...r.openings.north, ...r.openings.south, ...r.openings.east, ...r.openings.west].some((o) => o.material === "aluminum")
+  );
+  const hasGypsumBoards = rooms.some((r) =>
+    [...r.openings.north, ...r.openings.south, ...r.openings.east, ...r.openings.west].some((o) => o.material === "gypsum")
   );
 
   const roomHasData = (room) =>
@@ -1066,19 +1117,36 @@ export default function WallpaperCalcApp() {
   // アルミ複合板:硬い板材なのでロス率は考慮せず、必要面積÷パネル面積を切り上げて枚数を出す
   const totalAluminumAreaRaw = results.reduce((s, r) => s + r.aluminumPanelAreaM2, 0);
   const perRoomAluminumSheets = results.reduce(
-    (s, r) => s + aluminumPanelSheets(r.aluminumPanelAreaM2, aluminumPanelWidth, aluminumPanelHeight),
+    (s, r) => s + panelSheetsFromArea(r.aluminumPanelAreaM2, aluminumPanelWidth, aluminumPanelHeight),
     0
   );
-  const bulkAluminumSheets = aluminumPanelSheets(totalAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
+  const bulkAluminumSheets = panelSheetsFromArea(totalAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
   const finalAluminumSheets = lossMode === "perRoom" ? perRoomAluminumSheets : bulkAluminumSheets;
 
   const remainingAluminumAreaRaw = unfinishedIdx.reduce((s, i) => s + results[i].aluminumPanelAreaM2, 0);
   const remainingAluminumPerRoom = unfinishedIdx.reduce(
-    (s, i) => s + aluminumPanelSheets(results[i].aluminumPanelAreaM2, aluminumPanelWidth, aluminumPanelHeight),
+    (s, i) => s + panelSheetsFromArea(results[i].aluminumPanelAreaM2, aluminumPanelWidth, aluminumPanelHeight),
     0
   );
-  const remainingAluminumBulk = aluminumPanelSheets(remainingAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
+  const remainingAluminumBulk = panelSheetsFromArea(remainingAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
   const remainingAluminumSheets = lossMode === "perRoom" ? remainingAluminumPerRoom : remainingAluminumBulk;
+
+  // 石膏ボード:壁紙数量には影響せず(壁紙はそのまま貼るため)、板材として別途枚数集計
+  const totalGypsumAreaRaw = results.reduce((s, r) => s + r.gypsumBoardAreaM2, 0);
+  const perRoomGypsumSheets = results.reduce(
+    (s, r) => s + panelSheetsFromArea(r.gypsumBoardAreaM2, gypsumBoardWidth, gypsumBoardHeight),
+    0
+  );
+  const bulkGypsumSheets = panelSheetsFromArea(totalGypsumAreaRaw, gypsumBoardWidth, gypsumBoardHeight);
+  const finalGypsumSheets = lossMode === "perRoom" ? perRoomGypsumSheets : bulkGypsumSheets;
+
+  const remainingGypsumAreaRaw = unfinishedIdx.reduce((s, i) => s + results[i].gypsumBoardAreaM2, 0);
+  const remainingGypsumPerRoom = unfinishedIdx.reduce(
+    (s, i) => s + panelSheetsFromArea(results[i].gypsumBoardAreaM2, gypsumBoardWidth, gypsumBoardHeight),
+    0
+  );
+  const remainingGypsumBulk = panelSheetsFromArea(remainingGypsumAreaRaw, gypsumBoardWidth, gypsumBoardHeight);
+  const remainingGypsumSheets = lossMode === "perRoom" ? remainingGypsumPerRoom : remainingGypsumBulk;
 
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
@@ -1112,11 +1180,16 @@ export default function WallpaperCalcApp() {
     .filter((p) => p !== null);
   const cheapestOtherSheetPrice = otherSheetNormalizedPrices.length > 0 ? Math.min(...otherSheetNormalizedPrices) : null;
 
-  // アルミ複合板は板材で円/枚の単価なので、m単位の仕入れ単位選択(computeShopPurchase)は使わない
+  // アルミ複合板・石膏ボードは板材で円/枚の単価なので、m単位の仕入れ単位選択(computeShopPurchase)は使わない
   const aluminumShopSubtotals = aluminumShops.map((s) => finalAluminumSheets * num(s.price));
   const aluminumShopTotals = aluminumShops.map((s, i) => aluminumShopSubtotals[i] + num(s.shipping));
   const aluminumPrices = aluminumShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestAluminumPrice = aluminumPrices.length > 0 ? Math.min(...aluminumPrices) : null;
+
+  const gypsumShopSubtotals = gypsumShops.map((s) => finalGypsumSheets * num(s.price));
+  const gypsumShopTotals = gypsumShops.map((s, i) => gypsumShopSubtotals[i] + num(s.shipping));
+  const gypsumPrices = gypsumShops.map((s) => num(s.price)).filter((p) => p > 0);
+  const cheapestGypsumPrice = gypsumPrices.length > 0 ? Math.min(...gypsumPrices) : null;
 
   const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
   const adoptedWallpaperShop = adoptedWallpaperShopIdx >= 0 ? wallpaperShops[adoptedWallpaperShopIdx] : null;
@@ -1142,6 +1215,12 @@ export default function WallpaperCalcApp() {
   const adoptedAluminumShipping = adoptedAluminumShop ? num(adoptedAluminumShop.shipping) : 0;
   const adoptedAluminumTotal = adoptedAluminumShopIdx >= 0 ? aluminumShopTotals[adoptedAluminumShopIdx] : 0;
 
+  const adoptedGypsumShopIdx = gypsumShops.findIndex((s) => s.id === adoptedGypsumShopId);
+  const adoptedGypsumShop = adoptedGypsumShopIdx >= 0 ? gypsumShops[adoptedGypsumShopIdx] : null;
+  const adoptedGypsumSubtotal = adoptedGypsumShopIdx >= 0 ? gypsumShopSubtotals[adoptedGypsumShopIdx] : 0;
+  const adoptedGypsumShipping = adoptedGypsumShop ? num(adoptedGypsumShop.shipping) : 0;
+  const adoptedGypsumTotal = adoptedGypsumShopIdx >= 0 ? gypsumShopTotals[adoptedGypsumShopIdx] : 0;
+
   const remainingWallpaperCost = adoptedWallpaperShop
     ? computeShopPurchase(adoptedWallpaperShop, remainingWallpaper / 100).subtotal
     : 0;
@@ -1150,6 +1229,7 @@ export default function WallpaperCalcApp() {
     ? computeShopPurchase(adoptedOtherSheetShop, remainingOtherSheet / 100).subtotal
     : 0;
   const remainingAluminumCost = adoptedAluminumShop ? remainingAluminumSheets * num(adoptedAluminumShop.price) : 0;
+  const remainingGypsumCost = adoptedGypsumShop ? remainingGypsumSheets * num(adoptedGypsumShop.price) : 0;
 
   const yen = (n) => Math.round(n).toLocaleString("ja-JP");
 
@@ -1322,14 +1402,13 @@ export default function WallpaperCalcApp() {
     );
   };
 
-  const renderAluminumShopCard = (shop, i, sheets) => {
+  const renderPanelShopCard = (shop, i, sheets, updateFn, cheapestPrice, adoptedId, toggleAdopt, badgeColor) => {
     const price = num(shop.price);
     const shipping = num(shop.shipping);
     const subtotal = sheets * price;
     const total = subtotal + shipping;
-    const isCheapest = cheapestAluminumPrice !== null && price > 0 && price === cheapestAluminumPrice;
-    const isAdopted = adoptedAluminumShopId === shop.id;
-    const badgeColor = "#c07a2b";
+    const isCheapest = cheapestPrice !== null && price > 0 && price === cheapestPrice;
+    const isAdopted = adoptedId === shop.id;
     return (
       <div
         key={shop.id}
@@ -1344,7 +1423,7 @@ export default function WallpaperCalcApp() {
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
           <input
             value={shop.name}
-            onChange={(e) => updateAluminumShop(i, { name: e.target.value })}
+            onChange={(e) => updateFn(i, { name: e.target.value })}
             style={{
               flex: "1 1 0%",
               minWidth: 0,
@@ -1372,7 +1451,7 @@ export default function WallpaperCalcApp() {
             </span>
           )}
           <button
-            onClick={() => toggleAdoptAluminumShop(shop.id)}
+            onClick={() => toggleAdopt(shop.id)}
             style={{
               fontSize: 12,
               padding: "5px 10px",
@@ -1390,16 +1469,16 @@ export default function WallpaperCalcApp() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Field label="単価 円/枚">
-            <NumInput value={shop.price} onChange={(v) => updateAluminumShop(i, { price: v })} placeholder="0" />
+            <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
           </Field>
           <Field label="送料 円(別途)">
-            <NumInput value={shop.shipping} onChange={(v) => updateAluminumShop(i, { shipping: v })} placeholder="0" />
+            <NumInput value={shop.shipping} onChange={(v) => updateFn(i, { shipping: v })} placeholder="0" />
           </Field>
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             value={shop.url}
-            onChange={(e) => updateAluminumShop(i, { url: e.target.value })}
+            onChange={(e) => updateFn(i, { url: e.target.value })}
             placeholder="単価を採用したショップのURL"
             style={{
               flex: "1 1 0%",
@@ -1488,9 +1567,9 @@ export default function WallpaperCalcApp() {
         shop.id === adoptedId ? "採用" : "",
         shop.url,
       ]);
-    const aluminumShopExcelRows = (shops, subtotals, totals, adoptedId) =>
+    const panelShopExcelRows = (label, shops, subtotals, totals, adoptedId) =>
       shops.map((shop, i) => [
-        "アルミ複合板",
+        label,
         shop.name,
         num(shop.price),
         "円/枚",
@@ -1531,6 +1610,12 @@ export default function WallpaperCalcApp() {
             ["アルミ複合板 高さ(mm)", num(aluminumPanelHeight)],
           ]
         : []),
+      ...(hasGypsumBoards
+        ? [
+            ["石膏ボード 幅(mm)", num(gypsumBoardWidth)],
+            ["石膏ボード 高さ(mm)", num(gypsumBoardHeight)],
+          ]
+        : []),
       ["壁紙ロス率(%)", num(wallpaperLossRate)],
       ["CFロス率(%)", num(cfLossRate)],
       ...(hasOtherSheetRooms ? [["別シートロス率(%)", num(otherSheetLossRate)]] : []),
@@ -1541,22 +1626,27 @@ export default function WallpaperCalcApp() {
       ["CF(実数量合計) cm", round1(totalCfRaw)],
       ...(hasOtherSheetRooms ? [["別シート(実数量合計) cm", round1(totalOtherSheetRaw)]] : []),
       ...(hasAluminumPanels ? [["アルミ複合板(実面積合計) ㎡", round1(totalAluminumAreaRaw)]] : []),
+      ...(hasGypsumBoards ? [["石膏ボード(実面積合計) ㎡", round1(totalGypsumAreaRaw)]] : []),
       ["部屋ごと割増 壁紙 cm", round1(perRoomWallpaperTotal)],
       ["部屋ごと割増 CF cm", round1(perRoomCfTotal)],
       ...(hasOtherSheetRooms ? [["部屋ごと割増 別シート cm", round1(perRoomOtherSheetTotal)]] : []),
       ...(hasAluminumPanels ? [["部屋ごと割増 アルミ複合板 枚", perRoomAluminumSheets]] : []),
+      ...(hasGypsumBoards ? [["部屋ごと割増 石膏ボード 枚", perRoomGypsumSheets]] : []),
       ["全体一括割増 壁紙 cm", round1(bulkWallpaperTotal)],
       ["全体一括割増 CF cm", round1(bulkCfTotal)],
       ...(hasOtherSheetRooms ? [["全体一括割増 別シート cm", round1(bulkOtherSheetTotal)]] : []),
       ...(hasAluminumPanels ? [["全体一括割増 アルミ複合板 枚", bulkAluminumSheets]] : []),
+      ...(hasGypsumBoards ? [["全体一括割増 石膏ボード 枚", bulkGypsumSheets]] : []),
       [`総数(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
       [`総数(${lossModeLabel}) CF cm`, roundUp(finalCf)],
       ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, roundUp(finalOtherSheet)]] : []),
       ...(hasAluminumPanels ? [[`総数(${lossModeLabel}) アルミ複合板 枚`, finalAluminumSheets]] : []),
+      ...(hasGypsumBoards ? [[`総数(${lossModeLabel}) 石膏ボード 枚`, finalGypsumSheets]] : []),
       ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaper],
       ["残数量(施工完了の部屋を除く) CF cm", remainingCf],
       ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheet]] : []),
       ...(hasAluminumPanels ? [["残数量(施工完了の部屋を除く) アルミ複合板 枚", remainingAluminumSheets]] : []),
+      ...(hasGypsumBoards ? [["残数量(施工完了の部屋を除く) 石膏ボード 枚", remainingGypsumSheets]] : []),
       [],
       ["仕入れ比較(全店舗)"],
       ["材料", "店舗名", "単価", "単位", "送料", "合計額", "総額", "採用", "URL"],
@@ -1566,7 +1656,10 @@ export default function WallpaperCalcApp() {
         ? shopExcelRows("別シート", otherSheetShops, otherSheetShopSubtotals, otherSheetShopTotals, adoptedOtherSheetShopId)
         : []),
       ...(hasAluminumPanels
-        ? aluminumShopExcelRows(aluminumShops, aluminumShopSubtotals, aluminumShopTotals, adoptedAluminumShopId)
+        ? panelShopExcelRows("アルミ複合板", aluminumShops, aluminumShopSubtotals, aluminumShopTotals, adoptedAluminumShopId)
+        : []),
+      ...(hasGypsumBoards
+        ? panelShopExcelRows("石膏ボード", gypsumShops, gypsumShopSubtotals, gypsumShopTotals, adoptedGypsumShopId)
         : []),
     ];
 
@@ -1818,9 +1911,15 @@ export default function WallpaperCalcApp() {
           </div>
         )}
         {hasAluminumPanels && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: hasGypsumBoards ? 4 : 10 }}>
             <span>アルミ複合板(実面積合計)</span>
             <span>{round1(totalAluminumAreaRaw)} ㎡</span>
+          </div>
+        )}
+        {hasGypsumBoards && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
+            <span>石膏ボード(実面積合計)</span>
+            <span>{round1(totalGypsumAreaRaw)} ㎡</span>
           </div>
         )}
 
@@ -1831,6 +1930,7 @@ export default function WallpaperCalcApp() {
               壁紙 {round1(perRoomWallpaperTotal)}cm / CF {round1(perRoomCfTotal)}cm
               {hasOtherSheetRooms && ` / 別シート ${round1(perRoomOtherSheetTotal)}cm`}
               {hasAluminumPanels && ` / アルミ複合板 ${perRoomAluminumSheets}枚`}
+              {hasGypsumBoards && ` / 石膏ボード ${perRoomGypsumSheets}枚`}
             </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
@@ -1839,6 +1939,7 @@ export default function WallpaperCalcApp() {
               壁紙 {round1(bulkWallpaperTotal)}cm / CF {round1(bulkCfTotal)}cm
               {hasOtherSheetRooms && ` / 別シート ${round1(bulkOtherSheetTotal)}cm`}
               {hasAluminumPanels && ` / アルミ複合板 ${bulkAluminumSheets}枚`}
+              {hasGypsumBoards && ` / 石膏ボード ${bulkGypsumSheets}枚`}
             </span>
           </div>
         </div>
@@ -1865,7 +1966,7 @@ export default function WallpaperCalcApp() {
                 <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
                 <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedOtherSheetTotal)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasAluminumPanels ? 6 : 0 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasAluminumPanels || hasGypsumBoards ? 6 : 0 }}>
                 合計額¥{yen(adoptedOtherSheetSubtotal)} + 送料¥{yen(adoptedOtherSheetShipping)}
               </div>
             </>
@@ -1876,8 +1977,19 @@ export default function WallpaperCalcApp() {
                 <span style={{ fontSize: 26, fontWeight: 800 }}>アルミ複合板 {finalAluminumSheets} 枚</span>
                 <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedAluminumTotal)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasGypsumBoards ? 6 : 0 }}>
                 合計額¥{yen(adoptedAluminumSubtotal)} + 送料¥{yen(adoptedAluminumShipping)}
+              </div>
+            </>
+          )}
+          {hasGypsumBoards && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 26, fontWeight: 800 }}>石膏ボード {finalGypsumSheets} 枚</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedGypsumTotal)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65 }}>
+                合計額¥{yen(adoptedGypsumSubtotal)} + 送料¥{yen(adoptedGypsumShipping)}
               </div>
             </>
           )}
@@ -1903,6 +2015,12 @@ export default function WallpaperCalcApp() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>アルミ複合板 {remainingAluminumSheets} 枚</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingAluminumCost)}</span>
+            </div>
+          )}
+          {hasGypsumBoards && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>石膏ボード {remainingGypsumSheets} 枚</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingGypsumCost)}</span>
             </div>
           )}
         </div>
@@ -1959,6 +2077,16 @@ export default function WallpaperCalcApp() {
                 </Field>
                 <Field label="アルミ複合板 高さmm">
                   <NumInput value={aluminumPanelHeight} onChange={setAluminumPanelHeight} placeholder="1820" />
+                </Field>
+              </div>
+            )}
+            {hasGypsumBoards && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <Field label="石膏ボード 幅mm">
+                  <NumInput value={gypsumBoardWidth} onChange={setGypsumBoardWidth} placeholder="910" />
+                </Field>
+                <Field label="石膏ボード 高さmm">
+                  <NumInput value={gypsumBoardHeight} onChange={setGypsumBoardHeight} placeholder="1820" />
                 </Field>
               </div>
             )}
@@ -2185,7 +2313,58 @@ export default function WallpaperCalcApp() {
                 必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalAluminumAreaRaw)}㎡ ÷ 1枚(
                 {num(aluminumPanelWidth)}×{num(aluminumPanelHeight)}mm)を切り上げて計算({finalAluminumSheets}枚)。単価は1枚あたりで入力。
               </div>
-              {aluminumShops.map((shop, i) => renderAluminumShopCard(shop, i, finalAluminumSheets))}
+              {aluminumShops.map((shop, i) =>
+                renderPanelShopCard(
+                  shop,
+                  i,
+                  finalAluminumSheets,
+                  updateAluminumShop,
+                  cheapestAluminumPrice,
+                  adoptedAluminumShopId,
+                  toggleAdoptAluminumShop,
+                  "#c07a2b"
+                )
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {hasGypsumBoards && (
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #d8e3cd",
+            borderRadius: 10,
+            padding: 14,
+            marginTop: 16,
+          }}
+        >
+          <div
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+            onClick={() => setGypsumCompareOpen(!gypsumCompareOpen)}
+          >
+            <SectionTitle accent="#5a6b52">仕入れ比較 - 石膏ボード(店舗ごとの単価)</SectionTitle>
+            <span style={{ fontSize: 16, color: "#5a6b52" }}>{gypsumCompareOpen ? "▲" : "▼"}</span>
+          </div>
+          {gypsumCompareOpen && (
+            <>
+              <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+                必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalGypsumAreaRaw)}㎡ ÷ 1枚(
+                {num(gypsumBoardWidth)}×{num(gypsumBoardHeight)}mm)を切り上げて計算({finalGypsumSheets}枚)。単価は1枚あたりで入力。
+              </div>
+              {gypsumShops.map((shop, i) =>
+                renderPanelShopCard(
+                  shop,
+                  i,
+                  finalGypsumSheets,
+                  updateGypsumShop,
+                  cheapestGypsumPrice,
+                  adoptedGypsumShopId,
+                  toggleAdoptGypsumShop,
+                  "#b8860b"
+                )
+              )}
             </>
           )}
         </div>
