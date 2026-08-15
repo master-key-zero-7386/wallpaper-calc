@@ -1648,27 +1648,27 @@ export default function WallpaperCalcApp() {
               <Field label="壁紙の基本幅 mm">
                 <NumInput value={wallpaperWidth} onChange={setWallpaperWidth} placeholder="910" />
               </Field>
+              <Field label="壁紙ロス率(発注余裕分) %">
+                <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="8" />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
               <Field label="CFの基本幅 mm">
                 <NumInput value={cfWidth} onChange={setCfWidth} placeholder="1820" />
               </Field>
+              <Field label="CFロス率(発注余裕分) %">
+                <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
+              </Field>
             </div>
-            <Field label="壁紙ロス率(発注余裕分) %">
-              <NumInput value={wallpaperLossRate} onChange={setWallpaperLossRate} placeholder="8" />
-            </Field>
-            <Field label="CFロス率(発注余裕分) %">
-              <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
-            </Field>
             {hasOtherSheetRooms && (
-              <>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Field label="別シートの基本幅 mm">
-                    <NumInput value={otherSheetWidth} onChange={setOtherSheetWidth} placeholder="1820" />
-                  </Field>
-                  <Field label="別シートロス率 %">
-                    <NumInput value={otherSheetLossRate} onChange={setOtherSheetLossRate} placeholder="3" />
-                  </Field>
-                </div>
-              </>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Field label="別シートの基本幅 mm">
+                  <NumInput value={otherSheetWidth} onChange={setOtherSheetWidth} placeholder="1820" />
+                </Field>
+                <Field label="別シートロス率 %">
+                  <NumInput value={otherSheetLossRate} onChange={setOtherSheetLossRate} placeholder="3" />
+                </Field>
+              </div>
             )}
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
               <button
