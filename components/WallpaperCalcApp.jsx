@@ -859,9 +859,10 @@ export default function WallpaperCalcApp() {
   const [adoptedGypsumShopId, setAdoptedGypsumShopId] = useState(null);
   const [wallpaperCompareOpen, setWallpaperCompareOpen] = useState(true);
   const [cfCompareOpen, setCfCompareOpen] = useState(true);
-  const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(true);
-  const [aluminumCompareOpen, setAluminumCompareOpen] = useState(true);
-  const [gypsumCompareOpen, setGypsumCompareOpen] = useState(true);
+  // 別シート/アルミ複合板/石膏ボードは使わない現場が多いので、見出しは常に出すが中身はデフォルトで閉じておく
+  const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(false);
+  const [aluminumCompareOpen, setAluminumCompareOpen] = useState(false);
+  const [gypsumCompareOpen, setGypsumCompareOpen] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [favoriteShops, setFavoriteShops] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -994,9 +995,9 @@ export default function WallpaperCalcApp() {
     setAdoptedGypsumShopId(null);
     setWallpaperCompareOpen(true);
     setCfCompareOpen(true);
-    setOtherSheetCompareOpen(true);
-    setAluminumCompareOpen(true);
-    setGypsumCompareOpen(true);
+    setOtherSheetCompareOpen(false);
+    setAluminumCompareOpen(false);
+    setGypsumCompareOpen(false);
     setOpenRooms({});
     setSettingsOpen(false);
     setProjectName("");
@@ -1187,12 +1188,18 @@ export default function WallpaperCalcApp() {
   };
 
   const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth), num(otherSheetWidth)));
-  const hasOtherSheetRooms = rooms.some((r) => r.useOtherSheet);
+  // 部屋本体+追加部屋(床の間など)のどちらかで使われていれば対象とみなす
+  const allScopes = (r) => [r, ...(r.subRooms || [])];
+  const hasOtherSheetRooms = rooms.some((r) => allScopes(r).some((s) => s.useOtherSheet));
   const hasAluminumPanels = rooms.some((r) =>
-    [...r.openings.north, ...r.openings.south, ...r.openings.east, ...r.openings.west].some((o) => o.material === "aluminum")
+    allScopes(r).some((s) =>
+      [...s.openings.north, ...s.openings.south, ...s.openings.east, ...s.openings.west].some((o) => o.material === "aluminum")
+    )
   );
   const hasGypsumBoards = rooms.some((r) =>
-    [...r.openings.north, ...r.openings.south, ...r.openings.east, ...r.openings.west].some((o) => o.material === "gypsum")
+    allScopes(r).some((s) =>
+      [...s.openings.north, ...s.openings.south, ...s.openings.east, ...s.openings.west].some((o) => o.material === "gypsum")
+    )
   );
 
   const roomHasData = (room) =>
@@ -2184,36 +2191,30 @@ export default function WallpaperCalcApp() {
                 <NumInput value={cfLossRate} onChange={setCfLossRate} placeholder="3" />
               </Field>
             </div>
-            {hasOtherSheetRooms && (
-              <div style={{ display: "flex", gap: 10 }}>
-                <Field label="別シートの基本幅 mm">
-                  <NumInput value={otherSheetWidth} onChange={setOtherSheetWidth} placeholder="1820" />
-                </Field>
-                <Field label="別シートロス率 %">
-                  <NumInput value={otherSheetLossRate} onChange={setOtherSheetLossRate} placeholder="3" />
-                </Field>
-              </div>
-            )}
-            {hasAluminumPanels && (
-              <div style={{ display: "flex", gap: 10 }}>
-                <Field label="アルミ複合板 幅mm">
-                  <NumInput value={aluminumPanelWidth} onChange={setAluminumPanelWidth} placeholder="910" />
-                </Field>
-                <Field label="アルミ複合板 高さmm">
-                  <NumInput value={aluminumPanelHeight} onChange={setAluminumPanelHeight} placeholder="1820" />
-                </Field>
-              </div>
-            )}
-            {hasGypsumBoards && (
-              <div style={{ display: "flex", gap: 10 }}>
-                <Field label="石膏ボード 幅mm">
-                  <NumInput value={gypsumBoardWidth} onChange={setGypsumBoardWidth} placeholder="910" />
-                </Field>
-                <Field label="石膏ボード 高さmm">
-                  <NumInput value={gypsumBoardHeight} onChange={setGypsumBoardHeight} placeholder="1820" />
-                </Field>
-              </div>
-            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field label="別シートの基本幅 mm">
+                <NumInput value={otherSheetWidth} onChange={setOtherSheetWidth} placeholder="1820" />
+              </Field>
+              <Field label="別シートロス率 %">
+                <NumInput value={otherSheetLossRate} onChange={setOtherSheetLossRate} placeholder="3" />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field label="アルミ複合板 幅mm">
+                <NumInput value={aluminumPanelWidth} onChange={setAluminumPanelWidth} placeholder="910" />
+              </Field>
+              <Field label="アルミ複合板 高さmm">
+                <NumInput value={aluminumPanelHeight} onChange={setAluminumPanelHeight} placeholder="1820" />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field label="石膏ボード 幅mm">
+                <NumInput value={gypsumBoardWidth} onChange={setGypsumBoardWidth} placeholder="910" />
+              </Field>
+              <Field label="石膏ボード 高さmm">
+                <NumInput value={gypsumBoardHeight} onChange={setGypsumBoardHeight} placeholder="1820" />
+              </Field>
+            </div>
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
               <button
                 onClick={() => setLossMode("perRoom")}
@@ -2375,124 +2376,118 @@ export default function WallpaperCalcApp() {
         )}
       </div>
 
-      {hasOtherSheetRooms && (
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
         <div
-          style={{
-            background: "#fff",
-            border: "1px solid #d8e3cd",
-            borderRadius: 10,
-            padding: 14,
-            marginTop: 16,
-          }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setOtherSheetCompareOpen(!otherSheetCompareOpen)}
         >
-          <div
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-            onClick={() => setOtherSheetCompareOpen(!otherSheetCompareOpen)}
-          >
-            <SectionTitle accent="#5a6b52">仕入れ比較 - 別シート(店舗ごとの単価)</SectionTitle>
-            <span style={{ fontSize: 16, color: "#5a6b52" }}>{otherSheetCompareOpen ? "▲" : "▼"}</span>
-          </div>
-          {otherSheetCompareOpen && (
-            <>
-              <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
-                数量は別シートの総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"}・{round1(finalOtherSheetM)}m)を使用。単価はm(メートル)あたりで入力。
-              </div>
-              {otherSheetShops.map((shop, i) =>
-                renderMaterialShopCard(
-                  shop,
-                  i,
-                  updateOtherSheetShop,
-                  cheapestOtherSheetPrice,
-                  finalOtherSheetM,
-                  "#6b4c8a",
-                  adoptedOtherSheetShopId,
-                  toggleAdoptOtherSheetShop
-                )
-              )}
-            </>
-          )}
+          <SectionTitle accent="#5a6b52">仕入れ比較 - 別シート(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{otherSheetCompareOpen ? "▲" : "▼"}</span>
         </div>
-      )}
+        {otherSheetCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              数量は別シートの総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"}・{round1(finalOtherSheetM)}m)を使用。単価はm(メートル)あたりで入力。
+            </div>
+            {otherSheetShops.map((shop, i) =>
+              renderMaterialShopCard(
+                shop,
+                i,
+                updateOtherSheetShop,
+                cheapestOtherSheetPrice,
+                finalOtherSheetM,
+                "#6b4c8a",
+                adoptedOtherSheetShopId,
+                toggleAdoptOtherSheetShop
+              )
+            )}
+          </>
+        )}
+      </div>
 
-      {hasAluminumPanels && (
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
         <div
-          style={{
-            background: "#fff",
-            border: "1px solid #d8e3cd",
-            borderRadius: 10,
-            padding: 14,
-            marginTop: 16,
-          }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setAluminumCompareOpen(!aluminumCompareOpen)}
         >
-          <div
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-            onClick={() => setAluminumCompareOpen(!aluminumCompareOpen)}
-          >
-            <SectionTitle accent="#5a6b52">仕入れ比較 - アルミ複合板(店舗ごとの単価)</SectionTitle>
-            <span style={{ fontSize: 16, color: "#5a6b52" }}>{aluminumCompareOpen ? "▲" : "▼"}</span>
-          </div>
-          {aluminumCompareOpen && (
-            <>
-              <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
-                必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalAluminumAreaRaw)}㎡ ÷ 1枚(
-                {num(aluminumPanelWidth)}×{num(aluminumPanelHeight)}mm)を切り上げて計算({finalAluminumSheets}枚)。単価は1枚あたりで入力。
-              </div>
-              {aluminumShops.map((shop, i) =>
-                renderPanelShopCard(
-                  shop,
-                  i,
-                  finalAluminumSheets,
-                  updateAluminumShop,
-                  cheapestAluminumPrice,
-                  adoptedAluminumShopId,
-                  toggleAdoptAluminumShop,
-                  "#c07a2b"
-                )
-              )}
-            </>
-          )}
+          <SectionTitle accent="#5a6b52">仕入れ比較 - アルミ複合板(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{aluminumCompareOpen ? "▲" : "▼"}</span>
         </div>
-      )}
+        {aluminumCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalAluminumAreaRaw)}㎡ ÷ 1枚(
+              {num(aluminumPanelWidth)}×{num(aluminumPanelHeight)}mm)を切り上げて計算({finalAluminumSheets}枚)。単価は1枚あたりで入力。
+            </div>
+            {aluminumShops.map((shop, i) =>
+              renderPanelShopCard(
+                shop,
+                i,
+                finalAluminumSheets,
+                updateAluminumShop,
+                cheapestAluminumPrice,
+                adoptedAluminumShopId,
+                toggleAdoptAluminumShop,
+                "#c07a2b"
+              )
+            )}
+          </>
+        )}
+      </div>
 
-      {hasGypsumBoards && (
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
         <div
-          style={{
-            background: "#fff",
-            border: "1px solid #d8e3cd",
-            borderRadius: 10,
-            padding: 14,
-            marginTop: 16,
-          }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setGypsumCompareOpen(!gypsumCompareOpen)}
         >
-          <div
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-            onClick={() => setGypsumCompareOpen(!gypsumCompareOpen)}
-          >
-            <SectionTitle accent="#5a6b52">仕入れ比較 - 石膏ボード(店舗ごとの単価)</SectionTitle>
-            <span style={{ fontSize: 16, color: "#5a6b52" }}>{gypsumCompareOpen ? "▲" : "▼"}</span>
-          </div>
-          {gypsumCompareOpen && (
-            <>
-              <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
-                必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalGypsumAreaRaw)}㎡ ÷ 1枚(
-                {num(gypsumBoardWidth)}×{num(gypsumBoardHeight)}mm)を切り上げて計算({finalGypsumSheets}枚)。単価は1枚あたりで入力。
-              </div>
-              {gypsumShops.map((shop, i) =>
-                renderPanelShopCard(
-                  shop,
-                  i,
-                  finalGypsumSheets,
-                  updateGypsumShop,
-                  cheapestGypsumPrice,
-                  adoptedGypsumShopId,
-                  toggleAdoptGypsumShop,
-                  "#b8860b"
-                )
-              )}
-            </>
-          )}
+          <SectionTitle accent="#5a6b52">仕入れ比較 - 石膏ボード(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{gypsumCompareOpen ? "▲" : "▼"}</span>
         </div>
-      )}
+        {gypsumCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              必要枚数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalGypsumAreaRaw)}㎡ ÷ 1枚(
+              {num(gypsumBoardWidth)}×{num(gypsumBoardHeight)}mm)を切り上げて計算({finalGypsumSheets}枚)。単価は1枚あたりで入力。
+            </div>
+            {gypsumShops.map((shop, i) =>
+              renderPanelShopCard(
+                shop,
+                i,
+                finalGypsumSheets,
+                updateGypsumShop,
+                cheapestGypsumPrice,
+                adoptedGypsumShopId,
+                toggleAdoptGypsumShop,
+                "#b8860b"
+              )
+            )}
+          </>
+        )}
+      </div>
 
       <div
         style={{
