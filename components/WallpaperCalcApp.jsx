@@ -676,7 +676,7 @@ export default function WallpaperCalcApp() {
   const [combineStatus, setCombineStatus] = useState("");
   const [combineResult, setCombineResult] = useState(null);
   const [openRooms, setOpenRooms] = useState({});
-  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const defaultMaterialShops = (prefix) => [
     { id: `${prefix}A`, name: "店舗A", price: "", unit: "m", shipping: "", url: "" },
@@ -800,6 +800,11 @@ export default function WallpaperCalcApp() {
     setAdoptedWallpaperShopId(null);
     setAdoptedCfShopId(null);
     setAdoptedOtherSheetShopId(null);
+    setWallpaperCompareOpen(true);
+    setCfCompareOpen(true);
+    setOtherSheetCompareOpen(true);
+    setOpenRooms({});
+    setSettingsOpen(false);
     setProjectName("");
     setProjectStatus("新規物件を作成したで");
   };
@@ -909,7 +914,12 @@ export default function WallpaperCalcApp() {
           west: r.openings.west.map((o) => ({ ...o, id: nextIdSafe() })),
         },
       });
-      setRooms(payload.rooms.map(reIdRoom));
+      const loadedRooms = payload.rooms.map(reIdRoom);
+      const loadedWallpaperShops = payload.wallpaperShops ?? defaultMaterialShops("wp");
+      const loadedCfShops = payload.cfShops ?? defaultMaterialShops("cf");
+      const loadedOtherSheetShops = payload.otherSheetShops ?? defaultMaterialShops("os");
+
+      setRooms(loadedRooms);
       setWallpaperWidth(payload.wallpaperWidth ?? "910");
       setCfWidth(payload.cfWidth ?? "1820");
       setOtherSheetWidth(payload.otherSheetWidth ?? "1820");
@@ -917,12 +927,18 @@ export default function WallpaperCalcApp() {
       setCfLossRate(payload.cfLossRate ?? "3");
       setOtherSheetLossRate(payload.otherSheetLossRate ?? "3");
       setLossMode(payload.lossMode ?? "perRoom");
-      setWallpaperShops(payload.wallpaperShops ?? defaultMaterialShops("wp"));
-      setCfShops(payload.cfShops ?? defaultMaterialShops("cf"));
-      setOtherSheetShops(payload.otherSheetShops ?? defaultMaterialShops("os"));
+      setWallpaperShops(loadedWallpaperShops);
+      setCfShops(loadedCfShops);
+      setOtherSheetShops(loadedOtherSheetShops);
       setAdoptedWallpaperShopId(payload.adoptedWallpaperShopId ?? null);
       setAdoptedCfShopId(payload.adoptedCfShopId ?? null);
       setAdoptedOtherSheetShopId(payload.adoptedOtherSheetShopId ?? null);
+      // 入力済みのデータは初期状態で閉じておく(空の項目だけ開いたままにする)
+      setOpenRooms(Object.fromEntries(loadedRooms.map((r) => [r.id, !roomHasData(r)])));
+      setWallpaperCompareOpen(!shopsHaveData(loadedWallpaperShops));
+      setCfCompareOpen(!shopsHaveData(loadedCfShops));
+      setOtherSheetCompareOpen(!shopsHaveData(loadedOtherSheetShops));
+      setSettingsOpen(false);
       setProjectName(project.name ?? name);
       setProjectStatus(`「${project.name ?? name}」を開きました`);
       setShowProjectList(false);
@@ -944,6 +960,16 @@ export default function WallpaperCalcApp() {
 
   const results = rooms.map((r) => computeRoom(r, num(wallpaperWidth), num(cfWidth), num(otherSheetWidth)));
   const hasOtherSheetRooms = rooms.some((r) => r.useOtherSheet);
+
+  const roomHasData = (room) =>
+    room.floors.some((f) => num(f.l) > 0 || num(f.w) > 0) ||
+    num(room.ns.h) > 0 ||
+    num(room.ns.w) > 0 ||
+    num(room.ew.h) > 0 ||
+    num(room.ew.w) > 0 ||
+    room.extraWalls.some((w) => num(w.h) > 0 || num(w.w) > 0);
+
+  const shopsHaveData = (shops) => shops.some((s) => num(s.price) > 0 || (s.url && s.url.trim()));
 
   const totalWallpaperRaw = results.reduce((s, r, i) => s + (rooms[i].wallpaperEnabled ? r.wallpaperLenCm : 0), 0);
   const totalCfRaw = results.reduce((s, r, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? r.cfLenCm : 0), 0);
