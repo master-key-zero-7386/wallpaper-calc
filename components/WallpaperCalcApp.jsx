@@ -755,6 +755,26 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
             </div>
           )}
 
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 4, fontWeight: 600 }}>メモ</div>
+            <textarea
+              value={room.memo}
+              onChange={(e) => setField({ memo: e.target.value })}
+              placeholder="例: シーリング追加、TVアンテナ追加など"
+              rows={2}
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                fontSize: 14,
+                border: "1px solid #cbd5c0",
+                borderRadius: 6,
+                background: "#fff",
+                resize: "vertical",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
           <button
             onClick={removeRoom}
             style={{
@@ -1088,6 +1108,7 @@ export default function WallpaperCalcApp() {
           wallpaperEnabled: r.wallpaperEnabled ?? true,
           useOtherSheet: r.useOtherSheet ?? false,
           workDone: r.workDone ?? false,
+          memo: r.memo ?? "",
           floor: { ...r.floor, id: nextIdSafe() },
           extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
           openings: reIdOpenings(r.openings),
@@ -1678,7 +1699,7 @@ export default function WallpaperCalcApp() {
       [`物件名: ${projectName || "(未保存)"}`],
       [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
       [],
-      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "床材必要長さ(cm)", "床材種別", "壁紙", "床材", "発注"],
+      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "床材必要長さ(cm)", "床材種別", "壁紙", "床材", "発注", "メモ"],
       ...rooms.map((room, i) => {
         const r = results[i];
         return [
@@ -1692,8 +1713,18 @@ export default function WallpaperCalcApp() {
           room.wallpaperEnabled ? "対象" : "除外",
           room.cfEnabled ? "対象" : "除外",
           room.workDone ? "施工完了" : "未完了",
+          room.memo || "",
         ];
       }),
+      ...(rooms.some((room) => room.memo && room.memo.trim())
+        ? [
+            [],
+            ["メモ一覧"],
+            ...rooms
+              .filter((room) => room.memo && room.memo.trim())
+              .map((room) => [`${room.name}: ${room.memo.trim()}`]),
+          ]
+        : []),
       [],
       ["設定"],
       ["壁紙幅(mm)", num(wallpaperWidth)],
@@ -1759,7 +1790,7 @@ export default function WallpaperCalcApp() {
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 32 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 32 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "発注数量");
     XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
