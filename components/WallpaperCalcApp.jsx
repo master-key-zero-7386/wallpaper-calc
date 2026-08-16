@@ -506,104 +506,109 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
       >
         + 壁を追加
       </button>
-
-      <div
-        style={{
-          marginTop: 16,
-          padding: 12,
-          background: "#f3f8ee",
-          borderRadius: 8,
-          fontSize: 13,
-          color: "#33502e",
-          lineHeight: 1.9,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 4, color: "#4c6b40" }}>床・天井</div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>床面積</span>
-          <span>{round1(result.floorAreaM2)} ㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>天井面積</span>
-          <span>{scope.ceilingEnabled ? round1(result.ceilingAreaM2) + " ㎡" : "対象外(0㎡)"}</span>
-        </div>
-
-        <div style={{ fontWeight: 700, margin: "10px 0 4px", color: "#4c6b40" }}>壁(方角別、開口部差引前 → 差引後)</div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>北</span>
-          <span>{round1(result.northArea)}㎡ − 開口{round1(result.openN)}㎡ = {round1(result.netNorth)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>南</span>
-          <span>{round1(result.southArea)}㎡ − 開口{round1(result.openS)}㎡ = {round1(result.netSouth)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>東</span>
-          <span>{round1(result.eastArea)}㎡ − 開口{round1(result.openE)}㎡ = {round1(result.netEast)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>西</span>
-          <span>{round1(result.westArea)}㎡ − 開口{round1(result.openW)}㎡ = {round1(result.netWest)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>追加壁</span>
-          <span>{round1(result.extraArea)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 4, borderTop: "1px dashed #b9c9ab", paddingTop: 4 }}>
-          <span>北南計</span>
-          <span>{round1(result.nsSubtotal)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-          <span>東西計</span>
-          <span>{round1(result.ewSubtotal)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-          <span>壁合計(天井含まず)</span>
-          <span>{round1(result.wallAreaM2)}㎡</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#243d20" }}>
-          <span>壁紙対象合計(壁+天井)</span>
-          <span>{round1(result.wallpaperAreaM2)}㎡</span>
-        </div>
-
-        <div style={{ borderTop: "1px solid #b9c9ab", marginTop: 8, paddingTop: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-            <span>壁紙必要長さ(実数量)</span>
-            <span>{round1(result.wallpaperLenCm)} cm</span>
-          </div>
-          {!scope.wallpaperEnabled && (
-            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !scope.wallpaperEnabled ? 8 : 0 }}>
-            <span>{scope.useOtherSheet ? "別シート必要長さ(実数量)" : "CF必要長さ(実数量)"}</span>
-            <span>
-              {round1(scope.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)} cm
-              {scope.cfPattern ? `(${scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚継ぎ)` : ""}
-            </span>
-          </div>
-          {!scope.cfEnabled && (
-            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
-          )}
-          {scope.cfPattern && (
-            <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
-              柄あり計算:幅方向がロール幅を超えるため{scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
-            </div>
-          )}
-          {result.aluminumPanelAreaM2 > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
-              <span>アルミ複合板必要面積</span>
-              <span>{round1(result.aluminumPanelAreaM2)} ㎡</span>
-            </div>
-          )}
-          {result.gypsumBoardAreaM2 > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
-              <span>石膏ボード必要面積</span>
-              <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
-            </div>
-          )}
-        </div>
-      </div>
     </>
+  );
+}
+
+// RoomBodyの入力から出た面積・数量の集計表示。区画のリストより後(まとめとして最後)に置く。
+function RoomBreakdown({ scope, result }) {
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 12,
+        background: "#f3f8ee",
+        borderRadius: 8,
+        fontSize: 13,
+        color: "#33502e",
+        lineHeight: 1.9,
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 4, color: "#4c6b40" }}>床・天井</div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>床面積</span>
+        <span>{round1(result.floorAreaM2)} ㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>天井面積</span>
+        <span>{scope.ceilingEnabled ? round1(result.ceilingAreaM2) + " ㎡" : "対象外(0㎡)"}</span>
+      </div>
+
+      <div style={{ fontWeight: 700, margin: "10px 0 4px", color: "#4c6b40" }}>壁(方角別、開口部差引前 → 差引後)</div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>北</span>
+        <span>{round1(result.northArea)}㎡ − 開口{round1(result.openN)}㎡ = {round1(result.netNorth)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>南</span>
+        <span>{round1(result.southArea)}㎡ − 開口{round1(result.openS)}㎡ = {round1(result.netSouth)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>東</span>
+        <span>{round1(result.eastArea)}㎡ − 開口{round1(result.openE)}㎡ = {round1(result.netEast)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>西</span>
+        <span>{round1(result.westArea)}㎡ − 開口{round1(result.openW)}㎡ = {round1(result.netWest)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>追加壁</span>
+        <span>{round1(result.extraArea)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 4, borderTop: "1px dashed #b9c9ab", paddingTop: 4 }}>
+        <span>北南計</span>
+        <span>{round1(result.nsSubtotal)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+        <span>東西計</span>
+        <span>{round1(result.ewSubtotal)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+        <span>壁合計(天井含まず)</span>
+        <span>{round1(result.wallAreaM2)}㎡</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#243d20" }}>
+        <span>壁紙対象合計(壁+天井)</span>
+        <span>{round1(result.wallpaperAreaM2)}㎡</span>
+      </div>
+
+      <div style={{ borderTop: "1px solid #b9c9ab", marginTop: 8, paddingTop: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+          <span>壁紙必要長さ(実数量)</span>
+          <span>{round1(result.wallpaperLenCm)} cm</span>
+        </div>
+        {!scope.wallpaperEnabled && (
+          <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: !scope.wallpaperEnabled ? 8 : 0 }}>
+          <span>{scope.useOtherSheet ? "別シート必要長さ(実数量)" : "CF必要長さ(実数量)"}</span>
+          <span>
+            {round1(scope.useOtherSheet ? result.otherSheetLenCm : result.cfLenCm)} cm
+            {scope.cfPattern ? `(${scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚継ぎ)` : ""}
+          </span>
+        </div>
+        {!scope.cfEnabled && (
+          <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>寸法メモのみ:発注数量の合計には加算されません</div>
+        )}
+        {scope.cfPattern && (
+          <div style={{ fontSize: 11, color: "#b8860b", marginTop: 2 }}>
+            柄あり計算:幅方向がロール幅を超えるため{scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
+          </div>
+        )}
+        {result.aluminumPanelAreaM2 > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+            <span>アルミ複合板必要面積</span>
+            <span>{round1(result.aluminumPanelAreaM2)} ㎡</span>
+          </div>
+        )}
+        {result.gypsumBoardAreaM2 > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+            <span>石膏ボード必要面積</span>
+            <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -634,6 +639,7 @@ function SubRoomCard({ subRoom, setField, removeSubRoom, result, heightMm }) {
         </button>
       </div>
       <RoomBody scope={subRoom} setField={setField} result={result} heightMm={heightMm} isSub={true} />
+      <RoomBreakdown scope={subRoom} result={result} />
     </div>
   );
 }
@@ -721,6 +727,8 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
           <div style={{ fontSize: 11, color: "#8a9a80", margin: "4px 0 10px" }}>
             (床の間・クローゼットなど隣接する別区画を追加する場合)
           </div>
+
+          <RoomBreakdown scope={room} result={result.main} />
 
           {room.subRooms.length > 0 && (
             <div
