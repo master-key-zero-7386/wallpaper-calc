@@ -1387,15 +1387,34 @@ export default function WallpaperCalcApp() {
   const adoptedGypsumShipping = adoptedGypsumShop ? num(adoptedGypsumShop.shipping) : 0;
   const adoptedGypsumTotal = adoptedGypsumShopIdx >= 0 ? gypsumShopTotals[adoptedGypsumShopIdx] : 0;
 
-  const remainingWallpaperCost = adoptedWallpaperShop
-    ? computeShopPurchase(adoptedWallpaperShop, remainingWallpaper / 100).subtotal
-    : 0;
-  const remainingCfCost = adoptedCfShop ? computeShopPurchase(adoptedCfShop, remainingCf / 100).subtotal : 0;
-  const remainingOtherSheetCost = adoptedOtherSheetShop
-    ? computeShopPurchase(adoptedOtherSheetShop, remainingOtherSheet / 100).subtotal
-    : 0;
+  const remainingWallpaperPurchase = adoptedWallpaperShop
+    ? computeShopPurchase(adoptedWallpaperShop, remainingWallpaper / 100)
+    : null;
+  const remainingCfPurchase = adoptedCfShop ? computeShopPurchase(adoptedCfShop, remainingCf / 100) : null;
+  const remainingOtherSheetPurchase = adoptedOtherSheetShop
+    ? computeShopPurchase(adoptedOtherSheetShop, remainingOtherSheet / 100)
+    : null;
+  const remainingWallpaperCost = remainingWallpaperPurchase ? remainingWallpaperPurchase.subtotal : 0;
+  const remainingCfCost = remainingCfPurchase ? remainingCfPurchase.subtotal : 0;
+  const remainingOtherSheetCost = remainingOtherSheetPurchase ? remainingOtherSheetPurchase.subtotal : 0;
   const remainingAluminumCost = adoptedAluminumShop ? remainingAluminumSheets * num(adoptedAluminumShop.price) : 0;
   const remainingGypsumCost = adoptedGypsumShop ? remainingGypsumSheets * num(adoptedGypsumShop.price) : 0;
+
+  // 数量表示は、採用中ショップの発注単位(m/10cm/cm)で切り上げた実発注量に揃える
+  // (未採用時は従来通り1cm単位の切り上げ表示にフォールバック)。金額側は元々この単位で計算済みのため、これで数量と金額の丸めが一致する。
+  const wallpaperOrderQtyCm =
+    adoptedWallpaperShopIdx >= 0 ? round1(wallpaperPurchases[adoptedWallpaperShopIdx].purchasedQtyM * 100) : roundUp(finalWallpaper);
+  const cfOrderQtyCm =
+    adoptedCfShopIdx >= 0 ? round1(cfPurchases[adoptedCfShopIdx].purchasedQtyM * 100) : roundUp(finalCf);
+  const otherSheetOrderQtyCm =
+    adoptedOtherSheetShopIdx >= 0 ? round1(otherSheetPurchases[adoptedOtherSheetShopIdx].purchasedQtyM * 100) : roundUp(finalOtherSheet);
+  const remainingWallpaperOrderQtyCm = remainingWallpaperPurchase
+    ? round1(remainingWallpaperPurchase.purchasedQtyM * 100)
+    : remainingWallpaper;
+  const remainingCfOrderQtyCm = remainingCfPurchase ? round1(remainingCfPurchase.purchasedQtyM * 100) : remainingCf;
+  const remainingOtherSheetOrderQtyCm = remainingOtherSheetPurchase
+    ? round1(remainingOtherSheetPurchase.purchasedQtyM * 100)
+    : remainingOtherSheet;
 
   const yen = (n) => Math.round(n).toLocaleString("ja-JP");
 
@@ -1813,14 +1832,14 @@ export default function WallpaperCalcApp() {
       ...(hasOtherSheetRooms ? [["全体一括割増 別シート cm", round1(bulkOtherSheetTotal)]] : []),
       ...(hasAluminumPanels ? [["全体一括割増 アルミ複合板 枚", bulkAluminumSheets]] : []),
       ...(hasGypsumBoards ? [["全体一括割増 石膏ボード 枚", bulkGypsumSheets]] : []),
-      [`総数(${lossModeLabel}) 壁紙 cm`, roundUp(finalWallpaper)],
-      [`総数(${lossModeLabel}) CF cm`, roundUp(finalCf)],
-      ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, roundUp(finalOtherSheet)]] : []),
+      [`総数(${lossModeLabel}) 壁紙 cm`, wallpaperOrderQtyCm],
+      [`総数(${lossModeLabel}) CF cm`, cfOrderQtyCm],
+      ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, otherSheetOrderQtyCm]] : []),
       ...(hasAluminumPanels ? [[`総数(${lossModeLabel}) アルミ複合板 枚`, finalAluminumSheets]] : []),
       ...(hasGypsumBoards ? [[`総数(${lossModeLabel}) 石膏ボード 枚`, finalGypsumSheets]] : []),
-      ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaper],
-      ["残数量(施工完了の部屋を除く) CF cm", remainingCf],
-      ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheet]] : []),
+      ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaperOrderQtyCm],
+      ["残数量(施工完了の部屋を除く) CF cm", remainingCfOrderQtyCm],
+      ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheetOrderQtyCm]] : []),
       ...(hasAluminumPanels ? [["残数量(施工完了の部屋を除く) アルミ複合板 枚", remainingAluminumSheets]] : []),
       ...(hasGypsumBoards ? [["残数量(施工完了の部屋を除く) 石膏ボード 枚", remainingGypsumSheets]] : []),
       [],
@@ -2123,14 +2142,14 @@ export default function WallpaperCalcApp() {
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>総数({lossMode === "perRoom" ? "部屋ごと割増" : "全体一括割増"})</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {roundUp(finalWallpaper)} cm</span>
+            <span style={{ fontSize: 26, fontWeight: 800 }}>壁紙 {wallpaperOrderQtyCm} cm</span>
             <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedWallpaperTotal)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
             合計額¥{yen(adoptedWallpaperSubtotal)} + 送料¥{yen(adoptedWallpaperShipping)}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 26, fontWeight: 800 }}>CF {roundUp(finalCf)} cm</span>
+            <span style={{ fontSize: 26, fontWeight: 800 }}>CF {cfOrderQtyCm} cm</span>
             <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedCfTotal)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasOtherSheetRooms ? 6 : 0 }}>
@@ -2139,7 +2158,7 @@ export default function WallpaperCalcApp() {
           {hasOtherSheetRooms && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {roundUp(finalOtherSheet)} cm</span>
+                <span style={{ fontSize: 26, fontWeight: 800 }}>別シート {otherSheetOrderQtyCm} cm</span>
                 <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedOtherSheetTotal)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasAluminumPanels || hasGypsumBoards ? 6 : 0 }}>
@@ -2174,16 +2193,16 @@ export default function WallpaperCalcApp() {
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(施工完了の部屋を除く)</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaper} cm</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaperOrderQtyCm} cm</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingWallpaperCost)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCf} cm</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>CF {remainingCfOrderQtyCm} cm</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingCfCost)}</span>
           </div>
           {hasOtherSheetRooms && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>別シート {remainingOtherSheet} cm</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>別シート {remainingOtherSheetOrderQtyCm} cm</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingOtherSheetCost)}</span>
             </div>
           )}
