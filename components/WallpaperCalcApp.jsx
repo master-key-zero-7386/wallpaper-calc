@@ -644,7 +644,7 @@ function SubRoomCard({ subRoom, setField, removeSubRoom, result, heightMm }) {
   );
 }
 
-function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) {
+function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) {
   const setField = (patch) => updateRoom({ ...room, ...patch });
   const setSubField = (subId) => (patch) =>
     setField({ subRooms: room.subRooms.map((sr) => (sr.id === subId ? { ...sr, ...patch } : sr)) });
@@ -672,19 +672,61 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
         }}
         onClick={onToggleOpen}
       >
-        <input
-          value={room.name}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setField({ name: e.target.value })}
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            border: "none",
-            background: "transparent",
-            color: "#33502e",
-            width: "60%",
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, width: "60%" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              style={{
+                width: 22,
+                height: 18,
+                fontSize: 10,
+                lineHeight: 1,
+                borderRadius: 3,
+                border: "1px solid #9ab08c",
+                background: canMoveUp ? "#fff" : "#eef4e6",
+                color: canMoveUp ? "#4c6b40" : "#b9c9ae",
+                cursor: canMoveUp ? "pointer" : "default",
+              }}
+            >
+              ▲
+            </button>
+            <button
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              style={{
+                width: 22,
+                height: 18,
+                fontSize: 10,
+                lineHeight: 1,
+                borderRadius: 3,
+                border: "1px solid #9ab08c",
+                background: canMoveDown ? "#fff" : "#eef4e6",
+                color: canMoveDown ? "#4c6b40" : "#b9c9ae",
+                cursor: canMoveDown ? "pointer" : "default",
+              }}
+            >
+              ▼
+            </button>
+          </div>
+          <input
+            value={room.name}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setField({ name: e.target.value })}
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              border: "none",
+              background: "transparent",
+              color: "#33502e",
+              width: "100%",
+              minWidth: 0,
+            }}
+          />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 13, color: "#5a6b52" }}>
             {room.workDone && <span style={{ color: "#4c6b40", fontWeight: 700 }}>済 ・</span>}
@@ -1267,6 +1309,14 @@ export default function WallpaperCalcApp() {
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
   const addRoom = () => setRooms([...rooms, newRoom(`部屋${rooms.length + 1}`)]);
+  const moveRoom = (id, direction) => {
+    const idx = rooms.findIndex((r) => r.id === id);
+    const targetIdx = idx + direction;
+    if (idx === -1 || targetIdx < 0 || targetIdx >= rooms.length) return;
+    const copy = [...rooms];
+    [copy[idx], copy[targetIdx]] = [copy[targetIdx], copy[idx]];
+    setRooms(copy);
+  };
 
   const finalWallpaperM = finalWallpaper / 100;
   const finalCfM = finalCf / 100;
@@ -2276,6 +2326,10 @@ export default function WallpaperCalcApp() {
           removeRoom={() => removeRoom(room.id)}
           open={openRooms[room.id] ?? true}
           onToggleOpen={() => toggleRoomOpen(room.id)}
+          onMoveUp={() => moveRoom(room.id, -1)}
+          onMoveDown={() => moveRoom(room.id, 1)}
+          canMoveUp={i > 0}
+          canMoveDown={i < rooms.length - 1}
         />
       ))}
 
