@@ -7,7 +7,6 @@ import {
   newSubRoom,
   emptyOpening,
   emptyWall,
-  emptyFloor,
   num,
   round1,
   roundUp,
@@ -232,7 +231,7 @@ function DirectionOpenings({ label, list, onChange }) {
   );
 }
 
-// 部屋本体・追加部屋(床の間など)どちらの入力にも使う共通フォーム。
+// 部屋本体・区画(床の間・クローゼットなど)どちらの入力にも使う共通フォーム。
 // isSub=trueのときは高さ入力を出さず親部屋の高さを表示のみにする。
 function RoomBody({ scope, setField, result, heightMm, isSub }) {
   return (
@@ -266,84 +265,43 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
           {scope.useOtherSheet ? "別シート使用中" : "別シートを使用"}
         </button>
       </div>
-      {scope.floors.map((f, i) => (
-        <div key={f.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <input
-            type="number"
-            inputMode="decimal"
-            placeholder={i === 0 ? "北(南)幅mm" : "縦mm"}
-            value={f.l}
-            onChange={(e) => {
-              const copy = [...scope.floors];
-              copy[i] = { ...f, l: e.target.value };
-              setField({ floors: copy });
-            }}
-            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-          />
-          <span style={{ color: "#8a9a80" }}>×</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            placeholder={i === 0 ? "東(西)幅mm" : "横mm"}
-            value={f.w}
-            onChange={(e) => {
-              const copy = [...scope.floors];
-              copy[i] = { ...f, w: e.target.value };
-              setField({ floors: copy });
-            }}
-            style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-          />
-          {i === 0 && !isSub && (
-            <>
-              <span style={{ color: "#8a9a80" }}>×</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="高さmm"
-                value={heightMm}
-                onChange={(e) => setField({ height: e.target.value })}
-                style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
-              />
-            </>
-          )}
-          {scope.floors.length > 1 && (
-            <button
-              onClick={() => setField({ floors: scope.floors.filter((_, idx) => idx !== i) })}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 5,
-                border: "1px solid #d99",
-                background: "#fdeeee",
-                color: "#a33",
-                cursor: "pointer",
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
-      ))}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="北(南)幅mm"
+          value={scope.floor.l}
+          onChange={(e) => setField({ floor: { ...scope.floor, l: e.target.value } })}
+          style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+        />
+        <span style={{ color: "#8a9a80" }}>×</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="東(西)幅mm"
+          value={scope.floor.w}
+          onChange={(e) => setField({ floor: { ...scope.floor, w: e.target.value } })}
+          style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+        />
+        {!isSub && (
+          <>
+            <span style={{ color: "#8a9a80" }}>×</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="高さmm"
+              value={heightMm}
+              onChange={(e) => setField({ height: e.target.value })}
+              style={{ flex: "1 1 0%", minWidth: 0, padding: "8px 10px", fontSize: 15, border: "1px solid #cbd5c0", borderRadius: 5 }}
+            />
+          </>
+        )}
+      </div>
       {isSub && (
-        <div style={{ fontSize: 12, color: "#6b7d63", margin: "-2px 0 8px" }}>
+        <div style={{ fontSize: 12, color: "#6b7d63", margin: "-2px 0 10px" }}>
           高さは親部屋と共通({heightMm || "-"}mm)
         </div>
       )}
-      <button
-        onClick={() => setField({ floors: [...scope.floors, emptyFloor()] })}
-        style={{
-          fontSize: 13,
-          padding: "5px 10px",
-          borderRadius: 5,
-          border: "1px dashed #9ab08c",
-          background: "#f3f8ee",
-          color: "#4c6b40",
-          cursor: "pointer",
-          marginBottom: 10,
-        }}
-      >
-        + 床区画を追加
-      </button>
 
       <ToggleSwitch
         checked={scope.cfEnabled}
@@ -407,7 +365,7 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
         </div>
         {scope.cfPattern && (
           <div>
-            <div style={{ fontSize: 12, color: "#7a5a10", marginBottom: 4 }}>柄の流れる方向(床区画①の寸法を使用)</div>
+            <div style={{ fontSize: 12, color: "#7a5a10", marginBottom: 4 }}>柄の流れる方向(床の寸法を使用)</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => setField({ cfDirection: "l" })}
@@ -460,7 +418,7 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
 
       <SectionTitle>壁 (北・南)</SectionTitle>
       <div style={{ fontSize: 12, color: "#6b7d63", marginBottom: 4 }}>
-        幅{scope.floors[0]?.l || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
+        幅{scope.floor.l || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
       </div>
       <DirectionOpenings
         label="北"
@@ -476,7 +434,7 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
       <div style={{ height: 1, background: "#d8e3cd", margin: "16px 0" }} />
       <SectionTitle>壁 (東・西)</SectionTitle>
       <div style={{ fontSize: 12, color: "#6b7d63", marginBottom: 4 }}>
-        幅{scope.floors[0]?.w || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
+        幅{scope.floor.w || "-"}mm × 高さ{heightMm || "-"}mm(床の入力から自動計算)
       </div>
       <DirectionOpenings
         label="東"
@@ -562,7 +520,7 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
       >
         <div style={{ fontWeight: 700, marginBottom: 4, color: "#4c6b40" }}>床・天井</div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>床面積(区画合計)</span>
+          <span>床面積</span>
           <span>{round1(result.floorAreaM2)} ㎡</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -631,11 +589,6 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
               柄あり計算:幅方向がロール幅を超えるため{scope.useOtherSheet ? result.otherSheetStrips : result.cfStrips}枚を継いで施工する前提の長さ
             </div>
           )}
-          {(scope.useOtherSheet ? result.otherSheetNote : result.cfNote) && (
-            <div style={{ fontSize: 11, color: "#a33", marginTop: 2 }}>
-              {scope.useOtherSheet ? result.otherSheetNote : result.cfNote}
-            </div>
-          )}
           {result.aluminumPanelAreaM2 > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
               <span>アルミ複合板必要面積</span>
@@ -654,7 +607,7 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
   );
 }
 
-// 追加部屋(床の間など)。親部屋と同じ入力項目を持つが高さだけは親と共通。
+// 区画(床の間・クローゼットなど)。親部屋と同じ入力項目を持つが高さだけは親と共通。
 function SubRoomCard({ subRoom, setField, removeSubRoom, result, heightMm }) {
   return (
     <div style={{ background: "#fbfdf9", border: "1px dashed #9ab08c", borderRadius: 8, padding: 12, marginBottom: 10 }}>
@@ -677,7 +630,7 @@ function SubRoomCard({ subRoom, setField, removeSubRoom, result, heightMm }) {
             whiteSpace: "nowrap",
           }}
         >
-          この追加部屋を削除
+          この区画を削除
         </button>
       </div>
       <RoomBody scope={subRoom} setField={setField} result={result} heightMm={heightMm} isSub={true} />
@@ -690,7 +643,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
   const setSubField = (subId) => (patch) =>
     setField({ subRooms: room.subRooms.map((sr) => (sr.id === subId ? { ...sr, ...patch } : sr)) });
   const removeSubRoom = (subId) => setField({ subRooms: room.subRooms.filter((sr) => sr.id !== subId) });
-  const addSubRoom = () => setField({ subRooms: [...room.subRooms, newSubRoom(`追加部屋${room.subRooms.length + 1}`)] });
+  const addSubRoom = () => setField({ subRooms: [...room.subRooms, newSubRoom(`区画${room.subRooms.length + 1}`)] });
 
   return (
     <div
@@ -740,7 +693,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
           <RoomBody scope={room} setField={setField} result={result.main} heightMm={room.height} isSub={false} />
 
           <div style={{ height: 14 }} />
-          <SectionTitle>追加部屋 (床の間など、この部屋とつながった凸部)</SectionTitle>
+          <SectionTitle>区画</SectionTitle>
           {room.subRooms.map((sr, i) => (
             <SubRoomCard
               key={sr.id}
@@ -761,11 +714,13 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
               background: "#f3f8ee",
               color: "#4c6b40",
               cursor: "pointer",
-              marginBottom: 10,
             }}
           >
-            + 追加部屋を追加(床の間など)
+            この部屋に区画を追加する
           </button>
+          <div style={{ fontSize: 11, color: "#8a9a80", margin: "4px 0 10px" }}>
+            (床の間・クローゼットなど隣接する別区画を追加する場合)
+          </div>
 
           {room.subRooms.length > 0 && (
             <div
@@ -780,7 +735,7 @@ function RoomCard({ room, updateRoom, removeRoom, result, open, onToggleOpen }) 
                 color: "#243d20",
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>部屋+追加部屋 合計</div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>部屋+区画 合計</div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>壁紙対象合計</span>
                 <span>{round1(result.wallpaperAreaM2)}㎡ / {round1(result.wallpaperLenCm)}cm</span>
@@ -1111,11 +1066,11 @@ export default function WallpaperCalcApp() {
         cfEnabled: sr.cfEnabled ?? true,
         wallpaperEnabled: sr.wallpaperEnabled ?? true,
         useOtherSheet: sr.useOtherSheet ?? false,
-        floors: sr.floors.map((f) => ({ ...f, id: nextIdSafe() })),
+        floor: { ...sr.floor, id: nextIdSafe() },
         extraWalls: sr.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
         openings: reIdOpenings(sr.openings),
       });
-      // 旧データ(床の縦横とは別にns/ewを個別入力していた頃)をmigrateRoomで現行形式に変換してから再ID
+      // 旧データ(床の縦横とは別にns/ewを個別入力していた頃・床区画が配列だった頃)をmigrateRoomで現行形式に変換してから再ID
       const reIdRoom = (rawR) => {
         const r = migrateRoom(rawR);
         return {
@@ -1125,7 +1080,7 @@ export default function WallpaperCalcApp() {
           wallpaperEnabled: r.wallpaperEnabled ?? true,
           useOtherSheet: r.useOtherSheet ?? false,
           workDone: r.workDone ?? false,
-          floors: r.floors.map((f) => ({ ...f, id: nextIdSafe() })),
+          floor: { ...r.floor, id: nextIdSafe() },
           extraWalls: r.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
           openings: reIdOpenings(r.openings),
           subRooms: (r.subRooms || []).map(reIdSubRoom),
@@ -1203,7 +1158,8 @@ export default function WallpaperCalcApp() {
   );
 
   const roomHasData = (room) =>
-    room.floors.some((f) => num(f.l) > 0 || num(f.w) > 0) ||
+    num(room.floor.l) > 0 ||
+    num(room.floor.w) > 0 ||
     num(room.height) > 0 ||
     room.extraWalls.some((w) => num(w.h) > 0 || num(w.w) > 0) ||
     (room.subRooms || []).some((sr) => roomHasData(sr));
