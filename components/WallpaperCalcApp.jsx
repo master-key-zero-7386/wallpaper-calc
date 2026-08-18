@@ -82,6 +82,30 @@ function ToggleSwitch({ checked, onChange, label }) {
   );
 }
 
+// 壁紙/床(CF)/天井/開口部材(アルミ複合板・石膏ボード)など、施工内容ごとの個別完了チェック。
+function DoneMark({ checked, onChange, label, style }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end", margin: "6px 0 10px", ...style }}>
+      <button
+        onClick={() => onChange(!checked)}
+        style={{
+          fontSize: 12,
+          padding: "4px 10px",
+          borderRadius: 5,
+          border: checked ? "1px solid #4c6b40" : "1px solid #cbd5c0",
+          background: checked ? "#dcead2" : "#f7f7f7",
+          color: checked ? "#33502e" : "#8a9a80",
+          fontWeight: checked ? 700 : 400,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {checked ? `✓ ${label}完了` : `${label}を個別に完了にする`}
+      </button>
+    </div>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 10 }}>
@@ -177,6 +201,13 @@ function OpeningRow({ opening, onChange, onRemove }) {
           );
         })}
       </div>
+      {(opening.material === "aluminum" || opening.material === "gypsum") && (
+        <DoneMark
+          checked={!!opening.done}
+          onChange={(v) => onChange({ ...opening, done: v })}
+          label={opening.material === "aluminum" ? "アルミ複合板" : "石膏ボード"}
+        />
+      )}
     </div>
   );
 }
@@ -234,12 +265,37 @@ function DirectionOpenings({ label, list, onChange }) {
 // 部屋本体・区画(床の間・クローゼットなど)どちらの入力にも使う共通フォーム。
 // isSub=trueのときは高さ入力を出さず親部屋の高さを表示のみにする。
 function RoomBody({ scope, setField, result, heightMm, isSub }) {
+  // 一括「施工完了にする」は、部屋+配下の全区画・全開口部の個別完了フラグへそのままカスケードする。
+  // (個別チェックと一括スイッチの見た目を常に一致させるため)
+  const setWorkDone = (v) => {
+    const cascadeOpenings = (openings) => ({
+      north: openings.north.map((o) => ({ ...o, done: v })),
+      south: openings.south.map((o) => ({ ...o, done: v })),
+      east: openings.east.map((o) => ({ ...o, done: v })),
+      west: openings.west.map((o) => ({ ...o, done: v })),
+    });
+    setField({
+      workDone: v,
+      wallpaperDone: v,
+      cfDone: v,
+      ceilingDone: v,
+      openings: cascadeOpenings(scope.openings),
+      subRooms: (scope.subRooms || []).map((sr) => ({
+        ...sr,
+        wallpaperDone: v,
+        cfDone: v,
+        ceilingDone: v,
+        openings: cascadeOpenings(sr.openings),
+      })),
+    });
+  };
+
   return (
     <>
       {!isSub && (
         <ToggleSwitch
           checked={scope.workDone}
-          onChange={(v) => setField({ workDone: v })}
+          onChange={setWorkDone}
           label={scope.workDone ? "施工完了(済み)" : "施工完了にする"}
         />
       )}
@@ -316,6 +372,14 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
             : "CFを貼らない (発注数量に含まない)"
         }
       />
+      {scope.cfEnabled && (
+        <DoneMark
+          checked={!!scope.cfDone}
+          onChange={(v) => setField({ cfDone: v })}
+          label={scope.useOtherSheet ? "別シート施工" : "CF施工"}
+          style={{ marginTop: -4 }}
+        />
+      )}
 
       <div
         style={{
@@ -409,12 +473,28 @@ function RoomBody({ scope, setField, result, heightMm, isSub }) {
         onChange={(v) => setField({ ceilingEnabled: v })}
         label={scope.ceilingEnabled ? "天井に壁紙を貼る (床と同面積を発注数量に含む)" : "天井に壁紙を貼らない (発注数量に含まない)"}
       />
+      {scope.ceilingEnabled && (
+        <DoneMark
+          checked={!!scope.ceilingDone}
+          onChange={(v) => setField({ ceilingDone: v })}
+          label="天井施工"
+          style={{ marginTop: -4 }}
+        />
+      )}
 
       <ToggleSwitch
         checked={scope.wallpaperEnabled}
         onChange={(v) => setField({ wallpaperEnabled: v })}
         label={scope.wallpaperEnabled ? "壁紙を貼る (壁紙発注数量に含む)" : "壁紙を貼らない (発注数量に含まない)"}
       />
+      {scope.wallpaperEnabled && (
+        <DoneMark
+          checked={!!scope.wallpaperDone}
+          onChange={(v) => setField({ wallpaperDone: v })}
+          label="壁紙施工"
+          style={{ marginTop: -4 }}
+        />
+      )}
 
       <SectionTitle>壁 (北・南)</SectionTitle>
       <div style={{ fontSize: 12, color: "#6b7d63", marginBottom: 4 }}>
@@ -1123,6 +1203,7 @@ export default function WallpaperCalcApp() {
         ...o,
         id: nextIdSafe(),
         material: o.material ?? (o.isAluminumPanel ? "aluminum" : "opening"),
+        done: o.done ?? false,
       });
       const reIdOpenings = (openings) => ({
         north: openings.north.map(migrateOpening),
@@ -1134,7 +1215,10 @@ export default function WallpaperCalcApp() {
         ...sr,
         id: nextIdSafe(),
         cfEnabled: sr.cfEnabled ?? true,
+        cfDone: sr.cfDone ?? false,
         wallpaperEnabled: sr.wallpaperEnabled ?? true,
+        wallpaperDone: sr.wallpaperDone ?? false,
+        ceilingDone: sr.ceilingDone ?? false,
         useOtherSheet: sr.useOtherSheet ?? false,
         floor: { ...sr.floor, id: nextIdSafe() },
         extraWalls: sr.extraWalls.map((w) => ({ ...w, id: nextIdSafe() })),
@@ -1147,7 +1231,10 @@ export default function WallpaperCalcApp() {
           ...r,
           id: nextIdSafe(),
           cfEnabled: r.cfEnabled ?? true,
+          cfDone: r.cfDone ?? false,
           wallpaperEnabled: r.wallpaperEnabled ?? true,
+          wallpaperDone: r.wallpaperDone ?? false,
+          ceilingDone: r.ceilingDone ?? false,
           useOtherSheet: r.useOtherSheet ?? false,
           workDone: r.workDone ?? false,
           memo: r.memo ?? "",
@@ -1258,13 +1345,15 @@ export default function WallpaperCalcApp() {
   const finalCf = lossMode === "perRoom" ? perRoomCfTotal : bulkCfTotal;
   const finalOtherSheet = lossMode === "perRoom" ? perRoomOtherSheetTotal : bulkOtherSheetTotal;
 
-  const unfinishedIdx = rooms.map((r, i) => (r.workDone ? -1 : i)).filter((i) => i >= 0);
-  const remainingWallpaperRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? results[i].wallpaperLenCm : 0), 0);
-  const remainingCfRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? results[i].cfLenCm : 0), 0);
-  const remainingOtherSheetRaw = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? results[i].otherSheetLenCm : 0), 0);
-  const remainingWallpaperPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].wallpaperEnabled ? roundUp(results[i].wallpaperLenCm * (1 + wallpaperLoss)) : 0), 0);
-  const remainingCfPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && !rooms[i].useOtherSheet ? roundUp(results[i].cfLenCm * (1 + cfLoss)) : 0), 0);
-  const remainingOtherSheetPerRoom = unfinishedIdx.reduce((s, i) => s + (rooms[i].cfEnabled && rooms[i].useOtherSheet ? roundUp(results[i].otherSheetLenCm * (1 + otherSheetLoss)) : 0), 0);
+  // 個別完了(壁紙/CF/天井をそれぞれ部屋・区画ごとに完了扱いにできる)を反映した残数量。
+  // 一括「施工完了にする」も個別フラグへカスケードされて書き込まれるため、ここでは
+  // computeRoomLikeが個別フラグから計算済みの*RemainingLenCmをそのまま合算すればよい。
+  const remainingWallpaperRaw = results.reduce((s, r) => s + r.wallpaperRemainingLenCm, 0);
+  const remainingCfRaw = results.reduce((s, r) => s + r.cfRemainingLenCm, 0);
+  const remainingOtherSheetRaw = results.reduce((s, r) => s + r.otherSheetRemainingLenCm, 0);
+  const remainingWallpaperPerRoom = results.reduce((s, r) => s + roundUp(r.wallpaperRemainingLenCm * (1 + wallpaperLoss)), 0);
+  const remainingCfPerRoom = results.reduce((s, r) => s + roundUp(r.cfRemainingLenCm * (1 + cfLoss)), 0);
+  const remainingOtherSheetPerRoom = results.reduce((s, r) => s + roundUp(r.otherSheetRemainingLenCm * (1 + otherSheetLoss)), 0);
   const remainingWallpaperBulk = roundUp(remainingWallpaperRaw * (1 + wallpaperLoss));
   const remainingCfBulk = roundUp(remainingCfRaw * (1 + cfLoss));
   const remainingOtherSheetBulk = roundUp(remainingOtherSheetRaw * (1 + otherSheetLoss));
@@ -1281,9 +1370,9 @@ export default function WallpaperCalcApp() {
   const bulkAluminumSheets = panelSheetsFromArea(totalAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
   const finalAluminumSheets = lossMode === "perRoom" ? perRoomAluminumSheets : bulkAluminumSheets;
 
-  const remainingAluminumAreaRaw = unfinishedIdx.reduce((s, i) => s + results[i].aluminumPanelAreaM2, 0);
-  const remainingAluminumPerRoom = unfinishedIdx.reduce(
-    (s, i) => s + panelSheetsFromArea(results[i].aluminumPanelAreaM2, aluminumPanelWidth, aluminumPanelHeight),
+  const remainingAluminumAreaRaw = results.reduce((s, r) => s + r.aluminumPanelAreaRemainingM2, 0);
+  const remainingAluminumPerRoom = results.reduce(
+    (s, r) => s + panelSheetsFromArea(r.aluminumPanelAreaRemainingM2, aluminumPanelWidth, aluminumPanelHeight),
     0
   );
   const remainingAluminumBulk = panelSheetsFromArea(remainingAluminumAreaRaw, aluminumPanelWidth, aluminumPanelHeight);
@@ -1298,9 +1387,9 @@ export default function WallpaperCalcApp() {
   const bulkGypsumSheets = panelSheetsFromArea(totalGypsumAreaRaw, gypsumBoardWidth, gypsumBoardHeight);
   const finalGypsumSheets = lossMode === "perRoom" ? perRoomGypsumSheets : bulkGypsumSheets;
 
-  const remainingGypsumAreaRaw = unfinishedIdx.reduce((s, i) => s + results[i].gypsumBoardAreaM2, 0);
-  const remainingGypsumPerRoom = unfinishedIdx.reduce(
-    (s, i) => s + panelSheetsFromArea(results[i].gypsumBoardAreaM2, gypsumBoardWidth, gypsumBoardHeight),
+  const remainingGypsumAreaRaw = results.reduce((s, r) => s + r.gypsumBoardAreaRemainingM2, 0);
+  const remainingGypsumPerRoom = results.reduce(
+    (s, r) => s + panelSheetsFromArea(r.gypsumBoardAreaRemainingM2, gypsumBoardWidth, gypsumBoardHeight),
     0
   );
   const remainingGypsumBulk = panelSheetsFromArea(remainingGypsumAreaRaw, gypsumBoardWidth, gypsumBoardHeight);
@@ -1768,7 +1857,22 @@ export default function WallpaperCalcApp() {
       [`物件名: ${projectName || "(未保存)"}`],
       [`出力日: ${new Date().toLocaleDateString("ja-JP")}`],
       [],
-      ["部屋名", "床面積(㎡)", "天井面積(㎡)", "壁紙対象合計(㎡)", "壁紙必要長さ(cm)", "床材必要長さ(cm)", "床材種別", "壁紙", "床材", "発注", "メモ"],
+      [
+        "部屋名",
+        "床面積(㎡)",
+        "天井面積(㎡)",
+        "壁紙対象合計(㎡)",
+        "壁紙必要長さ(cm)",
+        "床材必要長さ(cm)",
+        "床材種別",
+        "壁紙",
+        "床材",
+        "壁紙完了",
+        "床材完了",
+        "天井完了",
+        "施工完了(一括)",
+        "メモ",
+      ],
       ...rooms.map((room, i) => {
         const r = results[i];
         return [
@@ -1781,10 +1885,29 @@ export default function WallpaperCalcApp() {
           room.useOtherSheet ? "別シート" : "CF",
           room.wallpaperEnabled ? "対象" : "除外",
           room.cfEnabled ? "対象" : "除外",
+          room.wallpaperEnabled ? (room.wallpaperDone ? "済" : "未") : "-",
+          room.cfEnabled ? (room.cfDone ? "済" : "未") : "-",
+          room.ceilingEnabled ? (room.ceilingDone ? "済" : "未") : "-",
           room.workDone ? "施工完了" : "未完了",
           room.memo || "",
         ];
       }),
+      ...(rooms.some((room) => (room.subRooms || []).length > 0)
+        ? [
+            [],
+            ["区画別 完了状況"],
+            ["部屋名", "区画名", "壁紙完了", "床材完了", "天井完了"],
+            ...rooms.flatMap((room) =>
+              (room.subRooms || []).map((sr) => [
+                room.name,
+                sr.name,
+                sr.wallpaperEnabled ? (sr.wallpaperDone ? "済" : "未") : "-",
+                sr.cfEnabled ? (sr.cfDone ? "済" : "未") : "-",
+                sr.ceilingEnabled ? (sr.ceilingDone ? "済" : "未") : "-",
+              ])
+            ),
+          ]
+        : []),
       ...(rooms.some((room) => room.memo && room.memo.trim())
         ? [
             [],
@@ -1837,11 +1960,16 @@ export default function WallpaperCalcApp() {
       ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, otherSheetOrderQtyCm]] : []),
       ...(hasAluminumPanels ? [[`総数(${lossModeLabel}) アルミ複合板 枚`, finalAluminumSheets]] : []),
       ...(hasGypsumBoards ? [[`総数(${lossModeLabel}) 石膏ボード 枚`, finalGypsumSheets]] : []),
-      ["残数量(施工完了の部屋を除く) 壁紙 cm", remainingWallpaperOrderQtyCm],
-      ["残数量(施工完了の部屋を除く) CF cm", remainingCfOrderQtyCm],
-      ...(hasOtherSheetRooms ? [["残数量(施工完了の部屋を除く) 別シート cm", remainingOtherSheetOrderQtyCm]] : []),
-      ...(hasAluminumPanels ? [["残数量(施工完了の部屋を除く) アルミ複合板 枚", remainingAluminumSheets]] : []),
-      ...(hasGypsumBoards ? [["残数量(施工完了の部屋を除く) 石膏ボード 枚", remainingGypsumSheets]] : []),
+      ["残数量(完了分を除く) 壁紙 cm", remainingWallpaperOrderQtyCm],
+      ["残数量(完了分を除く) CF cm", remainingCfOrderQtyCm],
+      ...(hasOtherSheetRooms ? [["残数量(完了分を除く) 別シート cm", remainingOtherSheetOrderQtyCm]] : []),
+      ...(hasAluminumPanels ? [["残数量(完了分を除く) アルミ複合板 枚", remainingAluminumSheets]] : []),
+      ...(hasGypsumBoards ? [["残数量(完了分を除く) 石膏ボード 枚", remainingGypsumSheets]] : []),
+      ["完了済み 壁紙 cm", round1(totalWallpaperRaw - remainingWallpaperRaw)],
+      ["完了済み CF cm", round1(totalCfRaw - remainingCfRaw)],
+      ...(hasOtherSheetRooms ? [["完了済み 別シート cm", round1(totalOtherSheetRaw - remainingOtherSheetRaw)]] : []),
+      ...(hasAluminumPanels ? [["完了済み アルミ複合板 ㎡", round1(totalAluminumAreaRaw - remainingAluminumAreaRaw)]] : []),
+      ...(hasGypsumBoards ? [["完了済み 石膏ボード ㎡", round1(totalGypsumAreaRaw - remainingGypsumAreaRaw)]] : []),
       [],
       ["仕入れ比較(全店舗)"],
       ["材料", "店舗名", "単価", "単位", "送料", "合計額", "総額", "採用", "URL"],
@@ -1859,7 +1987,22 @@ export default function WallpaperCalcApp() {
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 32 }];
+    ws["!cols"] = [
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 10 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 32 },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "発注数量");
     XLSX.writeFile(wb, `${(projectName || "壁紙CF計算").trim()}_発注数量.xlsx`);
@@ -2191,7 +2334,7 @@ export default function WallpaperCalcApp() {
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", marginTop: 12, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(施工完了の部屋を除く)</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>残数量(完了分を除く)</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>壁紙 {remainingWallpaperOrderQtyCm} cm</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingWallpaperCost)}</span>
