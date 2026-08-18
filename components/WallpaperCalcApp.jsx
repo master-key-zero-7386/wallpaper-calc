@@ -14,6 +14,7 @@ import {
   migrateRoom,
   computeShopPurchase,
   panelSheetsFromArea,
+  paintCansFromArea,
 } from "../lib/calc";
 
 let localUid = 1;
@@ -177,6 +178,7 @@ function OpeningRow({ opening, onChange, onRemove }) {
           { value: "opening", label: "開口部", color: "#5a6b52" },
           { value: "aluminum", label: "アルミ複合板", color: "#6b4c8a" },
           { value: "gypsum", label: "石膏ボード", color: "#b8860b" },
+          { value: "paint", label: "ペンキ塗装", color: "#2f7a5a" },
         ].map((opt) => {
           const active = (opening.material ?? "opening") === opt.value;
           return (
@@ -201,11 +203,13 @@ function OpeningRow({ opening, onChange, onRemove }) {
           );
         })}
       </div>
-      {(opening.material === "aluminum" || opening.material === "gypsum") && (
+      {(opening.material === "aluminum" || opening.material === "gypsum" || opening.material === "paint") && (
         <DoneMark
           checked={!!opening.done}
           onChange={(v) => onChange({ ...opening, done: v })}
-          label={opening.material === "aluminum" ? "アルミ複合板" : "石膏ボード"}
+          label={
+            opening.material === "aluminum" ? "アルミ複合板" : opening.material === "gypsum" ? "石膏ボード" : "ペンキ塗装"
+          }
         />
       )}
     </div>
@@ -687,6 +691,12 @@ function RoomBreakdown({ scope, result }) {
             <span>{round1(result.gypsumBoardAreaM2)} ㎡</span>
           </div>
         )}
+        {result.paintAreaM2 > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginTop: 8 }}>
+            <span>ペンキ塗装必要面積</span>
+            <span>{round1(result.paintAreaM2)} ㎡</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -930,6 +940,7 @@ export default function WallpaperCalcApp() {
   const [aluminumPanelHeight, setAluminumPanelHeight] = useState("1820");
   const [gypsumBoardWidth, setGypsumBoardWidth] = useState("910");
   const [gypsumBoardHeight, setGypsumBoardHeight] = useState("1820");
+  const [paintCoverageM2, setPaintCoverageM2] = useState("10");
   const [lossMode, setLossMode] = useState("perRoom");
 
   const [projectName, setProjectName] = useState("");
@@ -957,17 +968,20 @@ export default function WallpaperCalcApp() {
   const [otherSheetShops, setOtherSheetShops] = useState(defaultMaterialShops("os"));
   const [aluminumShops, setAluminumShops] = useState(defaultPanelShops("al"));
   const [gypsumShops, setGypsumShops] = useState(defaultPanelShops("gy"));
+  const [paintShops, setPaintShops] = useState(defaultPanelShops("pt"));
   const [adoptedWallpaperShopId, setAdoptedWallpaperShopId] = useState(null);
   const [adoptedCfShopId, setAdoptedCfShopId] = useState(null);
   const [adoptedOtherSheetShopId, setAdoptedOtherSheetShopId] = useState(null);
   const [adoptedAluminumShopId, setAdoptedAluminumShopId] = useState(null);
   const [adoptedGypsumShopId, setAdoptedGypsumShopId] = useState(null);
+  const [adoptedPaintShopId, setAdoptedPaintShopId] = useState(null);
   const [wallpaperCompareOpen, setWallpaperCompareOpen] = useState(true);
   const [cfCompareOpen, setCfCompareOpen] = useState(true);
-  // 別シート/アルミ複合板/石膏ボードは使わない現場が多いので、見出しは常に出すが中身はデフォルトで閉じておく
+  // 別シート/アルミ複合板/石膏ボード/ペンキ塗装は使わない現場が多いので、見出しは常に出すが中身はデフォルトで閉じておく
   const [otherSheetCompareOpen, setOtherSheetCompareOpen] = useState(false);
   const [aluminumCompareOpen, setAluminumCompareOpen] = useState(false);
   const [gypsumCompareOpen, setGypsumCompareOpen] = useState(false);
+  const [paintCompareOpen, setPaintCompareOpen] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [favoriteShops, setFavoriteShops] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -998,11 +1012,14 @@ export default function WallpaperCalcApp() {
     setAluminumShops(aluminumShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const updateGypsumShop = (i, patch) =>
     setGypsumShops(gypsumShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  const updatePaintShop = (i, patch) =>
+    setPaintShops(paintShops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const toggleAdoptWallpaperShop = (id) => setAdoptedWallpaperShopId((prev) => (prev === id ? null : id));
   const toggleAdoptCfShop = (id) => setAdoptedCfShopId((prev) => (prev === id ? null : id));
   const toggleAdoptOtherSheetShop = (id) => setAdoptedOtherSheetShopId((prev) => (prev === id ? null : id));
   const toggleAdoptAluminumShop = (id) => setAdoptedAluminumShopId((prev) => (prev === id ? null : id));
   const toggleAdoptGypsumShop = (id) => setAdoptedGypsumShopId((prev) => (prev === id ? null : id));
+  const toggleAdoptPaintShop = (id) => setAdoptedPaintShopId((prev) => (prev === id ? null : id));
   const addFavorite = () => {
     if (!newFavUrl.trim()) return;
     setFavoriteShops([
@@ -1045,6 +1062,7 @@ export default function WallpaperCalcApp() {
         aluminumPanelHeight,
         gypsumBoardWidth,
         gypsumBoardHeight,
+        paintCoverageM2,
         wallpaperLossRate,
         cfLossRate,
         otherSheetLossRate,
@@ -1054,11 +1072,13 @@ export default function WallpaperCalcApp() {
         otherSheetShops,
         aluminumShops,
         gypsumShops,
+        paintShops,
         adoptedWallpaperShopId,
         adoptedCfShopId,
         adoptedOtherSheetShopId,
         adoptedAluminumShopId,
         adoptedGypsumShopId,
+        adoptedPaintShopId,
       };
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -1084,6 +1104,7 @@ export default function WallpaperCalcApp() {
     setAluminumPanelHeight("1820");
     setGypsumBoardWidth("910");
     setGypsumBoardHeight("1820");
+    setPaintCoverageM2("10");
     setWallpaperLossRate("8");
     setCfLossRate("3");
     setOtherSheetLossRate("3");
@@ -1093,16 +1114,19 @@ export default function WallpaperCalcApp() {
     setOtherSheetShops(defaultMaterialShops("os"));
     setAluminumShops(defaultPanelShops("al"));
     setGypsumShops(defaultPanelShops("gy"));
+    setPaintShops(defaultPanelShops("pt"));
     setAdoptedWallpaperShopId(null);
     setAdoptedCfShopId(null);
     setAdoptedOtherSheetShopId(null);
     setAdoptedAluminumShopId(null);
     setAdoptedGypsumShopId(null);
+    setAdoptedPaintShopId(null);
     setWallpaperCompareOpen(true);
     setCfCompareOpen(true);
     setOtherSheetCompareOpen(false);
     setAluminumCompareOpen(false);
     setGypsumCompareOpen(false);
+    setPaintCompareOpen(false);
     setOpenRooms({});
     setSettingsOpen(false);
     setProjectName("");
@@ -1250,6 +1274,7 @@ export default function WallpaperCalcApp() {
       const loadedOtherSheetShops = payload.otherSheetShops ?? defaultMaterialShops("os");
       const loadedAluminumShops = payload.aluminumShops ?? defaultPanelShops("al");
       const loadedGypsumShops = payload.gypsumShops ?? defaultPanelShops("gy");
+      const loadedPaintShops = payload.paintShops ?? defaultPanelShops("pt");
 
       setRooms(loadedRooms);
       setWallpaperWidth(payload.wallpaperWidth ?? "910");
@@ -1259,6 +1284,7 @@ export default function WallpaperCalcApp() {
       setAluminumPanelHeight(payload.aluminumPanelHeight ?? "1820");
       setGypsumBoardWidth(payload.gypsumBoardWidth ?? "910");
       setGypsumBoardHeight(payload.gypsumBoardHeight ?? "1820");
+      setPaintCoverageM2(payload.paintCoverageM2 ?? "10");
       setWallpaperLossRate(payload.wallpaperLossRate ?? "10");
       setCfLossRate(payload.cfLossRate ?? "3");
       setOtherSheetLossRate(payload.otherSheetLossRate ?? "3");
@@ -1268,11 +1294,13 @@ export default function WallpaperCalcApp() {
       setOtherSheetShops(loadedOtherSheetShops);
       setAluminumShops(loadedAluminumShops);
       setGypsumShops(loadedGypsumShops);
+      setPaintShops(loadedPaintShops);
       setAdoptedWallpaperShopId(payload.adoptedWallpaperShopId ?? null);
       setAdoptedCfShopId(payload.adoptedCfShopId ?? null);
       setAdoptedOtherSheetShopId(payload.adoptedOtherSheetShopId ?? null);
       setAdoptedAluminumShopId(payload.adoptedAluminumShopId ?? null);
       setAdoptedGypsumShopId(payload.adoptedGypsumShopId ?? null);
+      setAdoptedPaintShopId(payload.adoptedPaintShopId ?? null);
       // 入力済みのデータは初期状態で閉じておく(空の項目だけ開いたままにする)
       setOpenRooms(Object.fromEntries(loadedRooms.map((r) => [r.id, !roomHasData(r)])));
       setWallpaperCompareOpen(!shopsHaveData(loadedWallpaperShops));
@@ -1280,6 +1308,7 @@ export default function WallpaperCalcApp() {
       setOtherSheetCompareOpen(!shopsHaveData(loadedOtherSheetShops));
       setAluminumCompareOpen(!shopsHaveData(loadedAluminumShops));
       setGypsumCompareOpen(!shopsHaveData(loadedGypsumShops));
+      setPaintCompareOpen(!shopsHaveData(loadedPaintShops));
       setSettingsOpen(false);
       setProjectName(project.name ?? name);
       setProjectStatus(`「${project.name ?? name}」を開きました`);
@@ -1312,6 +1341,11 @@ export default function WallpaperCalcApp() {
   const hasGypsumBoards = rooms.some((r) =>
     allScopes(r).some((s) =>
       [...s.openings.north, ...s.openings.south, ...s.openings.east, ...s.openings.west].some((o) => o.material === "gypsum")
+    )
+  );
+  const hasPaintAreas = rooms.some((r) =>
+    allScopes(r).some((s) =>
+      [...s.openings.north, ...s.openings.south, ...s.openings.east, ...s.openings.west].some((o) => o.material === "paint")
     )
   );
 
@@ -1395,6 +1429,20 @@ export default function WallpaperCalcApp() {
   const remainingGypsumBulk = panelSheetsFromArea(remainingGypsumAreaRaw, gypsumBoardWidth, gypsumBoardHeight);
   const remainingGypsumSheets = lossMode === "perRoom" ? remainingGypsumPerRoom : remainingGypsumBulk;
 
+  // ペンキ塗装:アルミ複合板・石膏ボードと同じく板材的に扱うが、単位は1缶で塗れる面積(㎡)
+  const totalPaintAreaRaw = results.reduce((s, r) => s + r.paintAreaM2, 0);
+  const perRoomPaintCans = results.reduce((s, r) => s + paintCansFromArea(r.paintAreaM2, paintCoverageM2), 0);
+  const bulkPaintCans = paintCansFromArea(totalPaintAreaRaw, paintCoverageM2);
+  const finalPaintCans = lossMode === "perRoom" ? perRoomPaintCans : bulkPaintCans;
+
+  const remainingPaintAreaRaw = results.reduce((s, r) => s + r.paintAreaRemainingM2, 0);
+  const remainingPaintPerRoom = results.reduce(
+    (s, r) => s + paintCansFromArea(r.paintAreaRemainingM2, paintCoverageM2),
+    0
+  );
+  const remainingPaintBulk = paintCansFromArea(remainingPaintAreaRaw, paintCoverageM2);
+  const remainingPaintCans = lossMode === "perRoom" ? remainingPaintPerRoom : remainingPaintBulk;
+
   const updateRoom = (id, next) => setRooms(rooms.map((r) => (r.id === id ? next : r)));
   const removeRoom = (id) => setRooms(rooms.filter((r) => r.id !== id));
   const addRoom = () => setRooms([...rooms, newRoom(`部屋${rooms.length + 1}`)]);
@@ -1446,6 +1494,12 @@ export default function WallpaperCalcApp() {
   const gypsumPrices = gypsumShops.map((s) => num(s.price)).filter((p) => p > 0);
   const cheapestGypsumPrice = gypsumPrices.length > 0 ? Math.min(...gypsumPrices) : null;
 
+  // ペンキ塗装も缶単位の単価なので、m単位の仕入れ単位選択(computeShopPurchase)は使わない
+  const paintShopSubtotals = paintShops.map((s) => finalPaintCans * num(s.price));
+  const paintShopTotals = paintShops.map((s, i) => paintShopSubtotals[i] + num(s.shipping));
+  const paintPrices = paintShops.map((s) => num(s.price)).filter((p) => p > 0);
+  const cheapestPaintPrice = paintPrices.length > 0 ? Math.min(...paintPrices) : null;
+
   const adoptedWallpaperShopIdx = wallpaperShops.findIndex((s) => s.id === adoptedWallpaperShopId);
   const adoptedWallpaperShop = adoptedWallpaperShopIdx >= 0 ? wallpaperShops[adoptedWallpaperShopIdx] : null;
   const adoptedWallpaperSubtotal = adoptedWallpaperShopIdx >= 0 ? wallpaperShopSubtotals[adoptedWallpaperShopIdx] : 0;
@@ -1476,6 +1530,12 @@ export default function WallpaperCalcApp() {
   const adoptedGypsumShipping = adoptedGypsumShop ? num(adoptedGypsumShop.shipping) : 0;
   const adoptedGypsumTotal = adoptedGypsumShopIdx >= 0 ? gypsumShopTotals[adoptedGypsumShopIdx] : 0;
 
+  const adoptedPaintShopIdx = paintShops.findIndex((s) => s.id === adoptedPaintShopId);
+  const adoptedPaintShop = adoptedPaintShopIdx >= 0 ? paintShops[adoptedPaintShopIdx] : null;
+  const adoptedPaintSubtotal = adoptedPaintShopIdx >= 0 ? paintShopSubtotals[adoptedPaintShopIdx] : 0;
+  const adoptedPaintShipping = adoptedPaintShop ? num(adoptedPaintShop.shipping) : 0;
+  const adoptedPaintTotal = adoptedPaintShopIdx >= 0 ? paintShopTotals[adoptedPaintShopIdx] : 0;
+
   const remainingWallpaperPurchase = adoptedWallpaperShop
     ? computeShopPurchase(adoptedWallpaperShop, remainingWallpaper / 100)
     : null;
@@ -1488,6 +1548,7 @@ export default function WallpaperCalcApp() {
   const remainingOtherSheetCost = remainingOtherSheetPurchase ? remainingOtherSheetPurchase.subtotal : 0;
   const remainingAluminumCost = adoptedAluminumShop ? remainingAluminumSheets * num(adoptedAluminumShop.price) : 0;
   const remainingGypsumCost = adoptedGypsumShop ? remainingGypsumSheets * num(adoptedGypsumShop.price) : 0;
+  const remainingPaintCost = adoptedPaintShop ? remainingPaintCans * num(adoptedPaintShop.price) : 0;
 
   // 数量表示は、採用中ショップの発注単位(m/10cm/cm)で切り上げた実発注量に揃える
   // (未採用時は従来通り1cm単位の切り上げ表示にフォールバック)。金額側は元々この単位で計算済みのため、これで数量と金額の丸めが一致する。
@@ -1676,7 +1737,7 @@ export default function WallpaperCalcApp() {
     );
   };
 
-  const renderPanelShopCard = (shop, i, sheets, updateFn, cheapestPrice, adoptedId, toggleAdopt, badgeColor) => {
+  const renderPanelShopCard = (shop, i, sheets, updateFn, cheapestPrice, adoptedId, toggleAdopt, badgeColor, unitLabel = "枚") => {
     const price = num(shop.price);
     const shipping = num(shop.shipping);
     const subtotal = sheets * price;
@@ -1742,7 +1803,7 @@ export default function WallpaperCalcApp() {
           </button>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <Field label="単価 円/枚">
+          <Field label={`単価 円/${unitLabel}`}>
             <NumInput value={shop.price} onChange={(v) => updateFn(i, { price: v })} placeholder="0" />
           </Field>
           <Field label="送料 円(別途)">
@@ -1793,7 +1854,7 @@ export default function WallpaperCalcApp() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>合計額({sheets}枚)</span>
+            <span>合計額({sheets}{unitLabel})</span>
             <span>¥{yen(subtotal)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
@@ -1841,12 +1902,12 @@ export default function WallpaperCalcApp() {
         shop.id === adoptedId ? "採用" : "",
         shop.url,
       ]);
-    const panelShopExcelRows = (label, shops, subtotals, totals, adoptedId) =>
+    const panelShopExcelRows = (label, shops, subtotals, totals, adoptedId, unit = "円/枚") =>
       shops.map((shop, i) => [
         label,
         shop.name,
         num(shop.price),
-        "円/枚",
+        unit,
         num(shop.shipping),
         Math.round(subtotals[i]),
         Math.round(totals[i]),
@@ -1934,6 +1995,7 @@ export default function WallpaperCalcApp() {
             ["石膏ボード 高さ(mm)", num(gypsumBoardHeight)],
           ]
         : []),
+      ...(hasPaintAreas ? [["ペンキ塗装 1缶あたり塗装可能面積(㎡)", num(paintCoverageM2)]] : []),
       ["壁紙ロス率(%)", num(wallpaperLossRate)],
       ["CFロス率(%)", num(cfLossRate)],
       ...(hasOtherSheetRooms ? [["別シートロス率(%)", num(otherSheetLossRate)]] : []),
@@ -1945,31 +2007,37 @@ export default function WallpaperCalcApp() {
       ...(hasOtherSheetRooms ? [["別シート(実数量合計) cm", round1(totalOtherSheetRaw)]] : []),
       ...(hasAluminumPanels ? [["アルミ複合板(実面積合計) ㎡", round1(totalAluminumAreaRaw)]] : []),
       ...(hasGypsumBoards ? [["石膏ボード(実面積合計) ㎡", round1(totalGypsumAreaRaw)]] : []),
+      ...(hasPaintAreas ? [["ペンキ塗装(実面積合計) ㎡", round1(totalPaintAreaRaw)]] : []),
       ["部屋ごと割増 壁紙 cm", round1(perRoomWallpaperTotal)],
       ["部屋ごと割増 CF cm", round1(perRoomCfTotal)],
       ...(hasOtherSheetRooms ? [["部屋ごと割増 別シート cm", round1(perRoomOtherSheetTotal)]] : []),
       ...(hasAluminumPanels ? [["部屋ごと割増 アルミ複合板 枚", perRoomAluminumSheets]] : []),
       ...(hasGypsumBoards ? [["部屋ごと割増 石膏ボード 枚", perRoomGypsumSheets]] : []),
+      ...(hasPaintAreas ? [["部屋ごと割増 ペンキ塗装 缶", perRoomPaintCans]] : []),
       ["全体一括割増 壁紙 cm", round1(bulkWallpaperTotal)],
       ["全体一括割増 CF cm", round1(bulkCfTotal)],
       ...(hasOtherSheetRooms ? [["全体一括割増 別シート cm", round1(bulkOtherSheetTotal)]] : []),
       ...(hasAluminumPanels ? [["全体一括割増 アルミ複合板 枚", bulkAluminumSheets]] : []),
       ...(hasGypsumBoards ? [["全体一括割増 石膏ボード 枚", bulkGypsumSheets]] : []),
+      ...(hasPaintAreas ? [["全体一括割増 ペンキ塗装 缶", bulkPaintCans]] : []),
       [`総数(${lossModeLabel}) 壁紙 cm`, wallpaperOrderQtyCm],
       [`総数(${lossModeLabel}) CF cm`, cfOrderQtyCm],
       ...(hasOtherSheetRooms ? [[`総数(${lossModeLabel}) 別シート cm`, otherSheetOrderQtyCm]] : []),
       ...(hasAluminumPanels ? [[`総数(${lossModeLabel}) アルミ複合板 枚`, finalAluminumSheets]] : []),
       ...(hasGypsumBoards ? [[`総数(${lossModeLabel}) 石膏ボード 枚`, finalGypsumSheets]] : []),
+      ...(hasPaintAreas ? [[`総数(${lossModeLabel}) ペンキ塗装 缶`, finalPaintCans]] : []),
       ["残数量(完了分を除く) 壁紙 cm", remainingWallpaperOrderQtyCm],
       ["残数量(完了分を除く) CF cm", remainingCfOrderQtyCm],
       ...(hasOtherSheetRooms ? [["残数量(完了分を除く) 別シート cm", remainingOtherSheetOrderQtyCm]] : []),
       ...(hasAluminumPanels ? [["残数量(完了分を除く) アルミ複合板 枚", remainingAluminumSheets]] : []),
       ...(hasGypsumBoards ? [["残数量(完了分を除く) 石膏ボード 枚", remainingGypsumSheets]] : []),
+      ...(hasPaintAreas ? [["残数量(完了分を除く) ペンキ塗装 缶", remainingPaintCans]] : []),
       ["完了済み 壁紙 cm", round1(totalWallpaperRaw - remainingWallpaperRaw)],
       ["完了済み CF cm", round1(totalCfRaw - remainingCfRaw)],
       ...(hasOtherSheetRooms ? [["完了済み 別シート cm", round1(totalOtherSheetRaw - remainingOtherSheetRaw)]] : []),
       ...(hasAluminumPanels ? [["完了済み アルミ複合板 ㎡", round1(totalAluminumAreaRaw - remainingAluminumAreaRaw)]] : []),
       ...(hasGypsumBoards ? [["完了済み 石膏ボード ㎡", round1(totalGypsumAreaRaw - remainingGypsumAreaRaw)]] : []),
+      ...(hasPaintAreas ? [["完了済み ペンキ塗装 ㎡", round1(totalPaintAreaRaw - remainingPaintAreaRaw)]] : []),
       [],
       ["仕入れ比較(全店舗)"],
       ["材料", "店舗名", "単価", "単位", "送料", "合計額", "総額", "採用", "URL"],
@@ -1983,6 +2051,9 @@ export default function WallpaperCalcApp() {
         : []),
       ...(hasGypsumBoards
         ? panelShopExcelRows("石膏ボード", gypsumShops, gypsumShopSubtotals, gypsumShopTotals, adoptedGypsumShopId)
+        : []),
+      ...(hasPaintAreas
+        ? panelShopExcelRows("ペンキ塗装", paintShops, paintShopSubtotals, paintShopTotals, adoptedPaintShopId, "円/缶")
         : []),
     ];
 
@@ -2255,9 +2326,15 @@ export default function WallpaperCalcApp() {
           </div>
         )}
         {hasGypsumBoards && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: hasPaintAreas ? 4 : 10 }}>
             <span>石膏ボード(実面積合計)</span>
             <span>{round1(totalGypsumAreaRaw)} ㎡</span>
+          </div>
+        )}
+        {hasPaintAreas && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
+            <span>ペンキ塗装(実面積合計)</span>
+            <span>{round1(totalPaintAreaRaw)} ㎡</span>
           </div>
         )}
 
@@ -2269,6 +2346,7 @@ export default function WallpaperCalcApp() {
               {hasOtherSheetRooms && ` / 別シート ${round1(perRoomOtherSheetTotal)}cm`}
               {hasAluminumPanels && ` / アルミ複合板 ${perRoomAluminumSheets}枚`}
               {hasGypsumBoards && ` / 石膏ボード ${perRoomGypsumSheets}枚`}
+              {hasPaintAreas && ` / ペンキ塗装 ${perRoomPaintCans}缶`}
             </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
@@ -2278,6 +2356,7 @@ export default function WallpaperCalcApp() {
               {hasOtherSheetRooms && ` / 別シート ${round1(bulkOtherSheetTotal)}cm`}
               {hasAluminumPanels && ` / アルミ複合板 ${bulkAluminumSheets}枚`}
               {hasGypsumBoards && ` / 石膏ボード ${bulkGypsumSheets}枚`}
+              {hasPaintAreas && ` / ペンキ塗装 ${bulkPaintCans}缶`}
             </span>
           </div>
         </div>
@@ -2326,8 +2405,19 @@ export default function WallpaperCalcApp() {
                 <span style={{ fontSize: 26, fontWeight: 800 }}>石膏ボード {finalGypsumSheets} 枚</span>
                 <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedGypsumTotal)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65, marginBottom: hasPaintAreas ? 6 : 0 }}>
                 合計額¥{yen(adoptedGypsumSubtotal)} + 送料¥{yen(adoptedGypsumShipping)}
+              </div>
+            </>
+          )}
+          {hasPaintAreas && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 26, fontWeight: 800 }}>ペンキ塗装 {finalPaintCans} 缶</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#a8d98a" }}>総額¥{yen(adoptedPaintTotal)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 11, opacity: 0.65 }}>
+                合計額¥{yen(adoptedPaintSubtotal)} + 送料¥{yen(adoptedPaintShipping)}
               </div>
             </>
           )}
@@ -2359,6 +2449,12 @@ export default function WallpaperCalcApp() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>石膏ボード {remainingGypsumSheets} 枚</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingGypsumCost)}</span>
+            </div>
+          )}
+          {hasPaintAreas && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#ffd27a" }}>ペンキ塗装 {remainingPaintCans} 缶</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd27a" }}>仕入れ予定額¥{yen(remainingPaintCost)}</span>
             </div>
           )}
         </div>
@@ -2420,6 +2516,11 @@ export default function WallpaperCalcApp() {
               </Field>
               <Field label="石膏ボード 高さmm">
                 <NumInput value={gypsumBoardHeight} onChange={setGypsumBoardHeight} placeholder="1820" />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field label="ペンキ塗装 1缶あたり塗装可能面積 ㎡">
+                <NumInput value={paintCoverageM2} onChange={setPaintCoverageM2} placeholder="10" />
               </Field>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
@@ -2694,6 +2795,45 @@ export default function WallpaperCalcApp() {
                 adoptedGypsumShopId,
                 toggleAdoptGypsumShop,
                 "#b8860b"
+              )
+            )}
+          </>
+        )}
+      </div>
+
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #d8e3cd",
+          borderRadius: 10,
+          padding: 14,
+          marginTop: 16,
+        }}
+      >
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+          onClick={() => setPaintCompareOpen(!paintCompareOpen)}
+        >
+          <SectionTitle accent="#5a6b52">仕入れ比較 - ペンキ塗装(店舗ごとの単価)</SectionTitle>
+          <span style={{ fontSize: 16, color: "#5a6b52" }}>{paintCompareOpen ? "▲" : "▼"}</span>
+        </div>
+        {paintCompareOpen && (
+          <>
+            <div style={{ fontSize: 12, color: "#5a6b52", marginBottom: 10, lineHeight: 1.6 }}>
+              必要缶数は{lossMode === "perRoom" ? "部屋ごと" : "全体一括"}で{round1(totalPaintAreaRaw)}㎡ ÷ 1缶(
+              {num(paintCoverageM2)}㎡)を切り上げて計算({finalPaintCans}缶)。単価は1缶あたりで入力。
+            </div>
+            {paintShops.map((shop, i) =>
+              renderPanelShopCard(
+                shop,
+                i,
+                finalPaintCans,
+                updatePaintShop,
+                cheapestPaintPrice,
+                adoptedPaintShopId,
+                toggleAdoptPaintShop,
+                "#2f7a5a",
+                "缶"
               )
             )}
           </>
